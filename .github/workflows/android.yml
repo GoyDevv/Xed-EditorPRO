@@ -38,11 +38,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Decode and create secrets
-        run: |
-          echo "${{ secrets.KEYSTORE }}" | base64 -d > /tmp/xed.keystore
-          echo "${{ secrets.PROP }}" | base64 -d > /tmp/signing.properties
-
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
@@ -57,20 +52,14 @@ jobs:
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: Build with Gradle
-        run: ./gradlew assembleRelease --no-daemon && mv app/build/outputs/apk/release/*.apk app/xed-editor-${{ env.COMMIT_HASH }}.apk
-        env:
-          KEYSTORE_FILE: /tmp/xed.keystore
-          SIGNING_PROPERTIES_FILE: /tmp/signing.properties
+        run: ./gradlew assembleDebug --no-daemon && mv app/build/outputs/apk/debug/*.apk app/xed-editor-${{ env.COMMIT_HASH }}.apk
         continue-on-error: false
 
       - name: Archive APK
         uses: actions/upload-artifact@v7
         with:
-          name: Xed-Editor-Release
+          name: Xed-Editor-Debug
           path: app/xed-editor-${{ env.COMMIT_HASH }}.apk
-
-      - name: Delete secrets
-        run: rm /tmp/xed.keystore /tmp/signing.properties
 
       - name: Send APK to Telegram
         if: ${{ success() && github.event.head_commit.message != '' }}
@@ -82,6 +71,18 @@ jobs:
             -F message_thread_id="582" \
             -F document=@"app/xed-editor-${{ env.COMMIT_HASH }}.apk" \
             --form-string "caption=$COMMIT_MSG"
+
+      - name: Publish Debug APK Release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "app/xed-editor-${{ env.COMMIT_HASH }}.apk"
+          tag: "debug-latest"
+          allowUpdates: true
+          replacesArtifacts: true
+          makeLatest: true
+          name: "Latest Debug Build"
+          body: "Automatically built debug APK (signed with the bundled testkey). It can be installed directly over previous debug builds since the signing key is always the same."
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate Plugin Sdk
         run: |

@@ -90,7 +90,9 @@ object ProjectRunner {
         val sandboxFile = toSandboxPath(file.getAbsolutePath())
         val sessionId = "Run · ${rootFile.name}"
         // Surface live progress in the editor's floating build view while this runs in the terminal.
-        RunOutputState.begin(label = sessionId, sessionId = sessionId)
+        // begin() also enforces the single-build rule: if a build is already running, bail out
+        // instead of launching a second terminal session.
+        if (!RunOutputState.begin(label = sessionId, sessionId = sessionId)) return
         launchTerminal(
             activity = activity,
             terminalCommand =

@@ -52,8 +52,13 @@ object RunOutputState {
     /**
      * Begin tracking a new run. Clears any previous output and shows the view. Called before the
      * terminal is launched, so [sessionId] is matched against the session created afterwards.
+     *
+     * Acts as an atomic single-build gate: returns `false` (and changes nothing) if a build is
+     * already running, so callers must not launch a terminal in that case.
      */
-    fun begin(label: String, sessionId: String) {
+    @Synchronized
+    fun begin(label: String, sessionId: String): Boolean {
+        if (isRunning) return false
         this.label = label
         expectedSessionId = sessionId
         latestLine = ""
@@ -61,6 +66,7 @@ object RunOutputState {
         isRunning = true
         isActive = true
         trackedSession = null
+        return true
     }
 
     /** Attach the live terminal session once it has been created by the terminal screen. */
