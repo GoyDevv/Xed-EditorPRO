@@ -732,4 +732,12 @@
     <string name="terminal_degraded_warning">The terminal is currently running in a degraded mode due to a known compatibility issue caused by a malfunction in the PRoot environment on certain devices. Some features may be limited or behave differently.</string>
     <string name="disabled_crashed">Disabled (Crashed)</string>
     <string name="download_count">Download Count</string>
+    <string name="expand_drawer">Expand</string>
+    <string name="collapse_drawer">Collapse</string>
+    <string name="build_output">Build output</string>
+    <string name="running">Running…</string>
+    <string name="finished">Finished</string>
+    <string name="expand">Expand</string>
+    <string name="collapse">Collapse</string>
+    <string name="dismiss">Dismiss</string>
 </resources>

@@ -88,6 +88,9 @@ object ProjectRunner {
         setupAssetFile("project_runner")
         val sandboxRoot = toSandboxPath(rootPath)
         val sandboxFile = toSandboxPath(file.getAbsolutePath())
+        val sessionId = "Run · ${rootFile.name}"
+        // Surface live progress in the editor's floating build view while this runs in the terminal.
+        RunOutputState.begin(label = sessionId, sessionId = sessionId)
         launchTerminal(
             activity = activity,
             terminalCommand =
@@ -101,7 +104,7 @@ object ProjectRunner {
                             sandboxRoot,
                             sandboxFile,
                         ),
-                    id = "Run · ${rootFile.name}",
+                    id = sessionId,
                     terminatePreviousSession = true,
                     workingDir = sandboxRoot,
                 ),

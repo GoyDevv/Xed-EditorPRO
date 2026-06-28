@@ -1,0 +1,124 @@
+# Changelogs
+
+Direct record of changes made in this session.
+
+## 1. Project-aware Run button
+
+Replaced the single-file "run" behavior with project-level detection and execution.
+
+- `core/main/src/main/java/com/rk/runner/ProjectRunner.kt` (new)
+  - Detects project type via `ProjectTypeDetector` (cached ~4s).
+  - `isRunnable`: true for PYTHON, NODE, WEB, FABRIC_MOD, FORGE_MOD, GRADLE, RUST, GO; false for ANDROID and UNKNOWN (button hidden).
+  - WEB → opens existing in-app `HtmlRunner` preview.
+  - All other runnable types → launches the terminal with `project_runner.sh`, working directory = project root.
+  - `toSandboxPath()`: maps `/storage/emulated/0/...` and `/storage/self/primary/...` to `/sdcard/...` (the path the proot sandbox binds reliably). Applied to working dir and file args.
+  - `resolveProjectRootPath()`: uses `EditorTab.projectRoot` (the project root the file was opened from); falls back to the file's parent. Returns null for non-filesystem (SAF/network) files.
+- `core/main/src/main/java/com/rk/commands/editor/RunCommand.kt` (rewritten)
+  - `isSupported()` → `ProjectRunner.canRun(projectRoot)` (hides for Android/Unknown).
+  - `action()` → `ProjectRunner.run(...)`. Removed old `RunnerManager`/multi-runner sheet usage.
+- `core/main/src/main/assets/terminal/project_runner.sh` (new)
+  - Args: project type, project dir, entry file.
+  - `enter_dir()`: `cd` into project dir with a `/sdcard` fallback before failing (fixes "Cannot enter project directory").
+  - PYTHON: runs open `.py` or `main.py`/`app.py`/`run.py`/`manage.py`; `pip install -r requirements.txt` if present.
+  - NODE: `npm install` if needed, then `npm start` or `node index.js`.
+  - FABRIC_MOD/FORGE_MOD/GRADLE: checks JDK, `chmod +x ./gradlew`, runs `./gradlew build` (with `bash ./gradlew build` fallback if exec bit can't be set); errors shown in terminal.
+  - RUST: `cargo run`. GO: `go run .`.
+  - Missing tools print a message pointing to the Dependencies dialog. No `set -e`; prints DONE/FAILED banner with exit code.
+
+## 2. Editor cursor follows the on-screen keyboard
+
+- `soraX/editor/src/main/java/io/github/rosemoe/sora/widget/EditorInputConnection.java`
+  - `setSelection(start, end)` now calls `setSelectionRegion(..., true, CAUSE_IME)` so IME-driven cursor moves (Gboard space-bar swipe / cursor control) scroll the view to keep the caret visible. `ensurePositionVisible` is a no-op when the caret is already on screen, so it only scrolls when off-view. (Previous attempt used `!isComposing()`, which failed because Gboard keeps the word composing during a space-swipe.)
+
+## 3. Project storage moved to terminal home; Documents/XED removed
+
+- `core/main/src/main/java/com/rk/projects/CreateProjectDialog.kt`
+  - Signature: `CreateProjectDialog(projectsDir, onDismiss, onCreate)` (removed `documentsDir`/`sandboxDir`).
+  - `parentDir = projectsDir` always (the sandbox home).
+  - Removed the "build in sandbox" toggle and the `useSandbox`/`recommendsSandbox` location logic.
+- `core/main/src/main/java/com/rk/drawer/Drawer.kt`
+  - Create dialog now passes `projectsDir = sandboxHomeDir()`.
+  - Removed unused `android.os.Environment` import.
+
+## 4. Clone repo goes straight into the terminal home
+
+- `core/main/src/main/java/com/rk/drawer/Drawer.kt`
+  - Removed the `OpenDocumentTree` (SAF) folder picker for cloning.
+  - New `cloneIntoSandbox()`: clones into `sandboxHomeDir()/<repoName>`, unique-suffixed (`-1`, `-2`, ...) if the name exists, so multiple clones don't collide. On success, adds the file-tree tab (`save = true`).
+  - Clone dialog `onConfirm` now calls `cloneIntoSandbox()`.
+
+## 5. "Show all files" toggle (IDE-style tab scoping)
+
+Default OFF: open editor tabs are scoped to the project/directory selected in the drawer. ON: all open files shown together.
+
+- `core/main/src/main/java/com/rk/settings/Settings.kt`
+  - Added `show_all_files` (default false) and `migrated_show_all_files_toolbar` (one-time migration flag).
+- `core/main/src/main/java/com/rk/commands/editor/ToggleShowAllFilesCommand.kt` (new)
+  - `EditorCommand` + `ToggleableCommand`, id `editor.show_all_files`, toggles `Settings.show_all_files`, icon `drawables.filter`, label `strings.show_all_files`.
+- `core/main/src/main/java/com/rk/commands/CommandProvider.kt`
+  - Import, `lateinit var`, and `registerBuiltin(...)` for the new command.
+- `core/main/src/main/java/com/rk/commands/ToolbarConfiguration.kt`
+  - Added `editor.show_all_files` to `DEFAULT_EDITOR_TOOLBAR_COMMANDS`.
+- `core/main/src/main/java/com/rk/App.kt`
+  - One-time migration: appends `editor.show_all_files` to `action_items` for existing users; added `ToolbarConfiguration` import.
+- `core/resources/src/main/res/values/strings.xml`
+  - Added `<string name="show_all_files">Show all files</string>`.
+- `core/main/src/main/java/com/rk/activities/main/MainContent.kt`
+  - New `visibleTabsFor(mainViewModel, drawerViewModel)`: when `show_all_files` is off and a `FileTreeTab` is selected, filters editor tabs to those whose `EditorTab.projectRoot` matches the selected project root; non-editor tabs always shown.
+  - Tab row and pager now render `visibleTabs`; `selectedVisibleIndex` drives selection and pager sync.
+  - `LaunchedEffect` auto-switches the active tab to a visible one when the project selection changes.
+  - Empty state shown when no tabs are visible. Imported `FileTreeTab`.
+
+## 6. Markdown preview rewritten for GitHub accuracy (offline)
+
+Replaced the TextView/Spanned preview with an offline WebView renderer. The shared `SimpleMarkdownRenderer` (LSP hovers / extension READMEs / its tests) was left untouched.
+
+- `core/main/src/main/java/com/rk/tabs/markdown/MarkdownToHtml.kt` (new)
+  - Dependency-free Markdown → HTML converter: ATX headings with anchor ids, paragraphs with soft/hard line breaks, bold/italic/bold-italic/strikethrough/inline code, fenced code blocks (escaped, language class), nestable blockquotes, ordered/unordered nested lists, task lists (`- [ ]` / `- [x]`), GFM tables with column alignment, horizontal rules, links, autolinks (`<url>`), images.
+  - HTML-escaped throughout; `javascript:` / `data:text/html` URLs neutralized.
+- `core/main/src/main/java/com/rk/tabs/markdown/GithubMarkdownStyle.kt` (new)
+  - Inline GitHub-flavored CSS (light + dark via `data-theme`) and `document()` builder that wraps the body HTML.
+- `core/main/src/main/java/com/rk/tabs/markdown/MarkdownPreviewTab.kt` (rewritten)
+  - Renders via `AndroidView` + `WebView` with JavaScript disabled (no code execution), `loadDataWithBaseURL(baseUrl = file's parent dir)` so relative images/links resolve.
+  - `WebViewClient` opens http/https/mailto links externally (`FLAG_ACTIVITY_NEW_TASK`); other schemes ignored.
+  - Dark/light from `isDarkTheme(context)`. Crossfade loading/error/ready states retained.
+
+## 7. Existing storage exposure (no change needed)
+
+- Note only: the SAF `DocumentsProvider` (`core/main/src/main/java/com/rk/DocumentProvider.kt`) already exposes the sandbox home to external apps. Enable it via Settings → Terminal → "Expose home directory" (`Settings.expose_home_dir`). No code changed for this item in this session.
+
+## 8. Documentation
+
+- `changelog.md` updated with the above (Run button, editor input, storage/clone, tab scoping, Markdown preview).
+- `Changelogs.txt` (this file) added.
+
+## Verification done in-session
+
+- Brace/paren balance checks on all edited Kotlin files.
+- `bash -n` on `project_runner.sh`.
+- `strings.xml` validated as well-formed XML.
+- Full Gradle build not run locally (repo on `/sdcard` is `noexec`, system gradle broken, no full Android SDK). Build via GitHub Actions.
+
+## Files changed/added this session
+
+New:
+- core/main/src/main/java/com/rk/runner/ProjectRunner.kt
+- core/main/src/main/assets/terminal/project_runner.sh
+- core/main/src/main/java/com/rk/commands/editor/ToggleShowAllFilesCommand.kt
+- core/main/src/main/java/com/rk/tabs/markdown/MarkdownToHtml.kt
+- core/main/src/main/java/com/rk/tabs/markdown/GithubMarkdownStyle.kt
+- Changelogs.txt
+
+Modified:
+- core/main/src/main/java/com/rk/commands/editor/RunCommand.kt
+- core/main/src/main/java/com/rk/tabs/markdown/MarkdownPreviewTab.kt
+- soraX/editor/src/main/java/io/github/rosemoe/sora/widget/EditorInputConnection.java
+- core/main/src/main/java/com/rk/projects/CreateProjectDialog.kt
+- core/main/src/main/java/com/rk/drawer/Drawer.kt
+- core/main/src/main/java/com/rk/settings/Settings.kt
+- core/main/src/main/java/com/rk/commands/CommandProvider.kt
+- core/main/src/main/java/com/rk/commands/ToolbarConfiguration.kt
+- core/main/src/main/java/com/rk/App.kt
+- core/main/src/main/java/com/rk/activities/main/MainContent.kt
+- core/resources/src/main/res/values/strings.xml
+- changelog.md

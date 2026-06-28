@@ -55,6 +55,8 @@ import androidx.compose.ui.unit.dp
 import com.rk.activities.main.MainActivity
 import com.rk.activities.main.gitViewModel
 import com.rk.components.DoubleInputDialog
+import com.rk.components.isDrawerExpanded
+import com.rk.components.isPermanentDrawer
 import com.rk.file.FileWrapper
 import com.rk.file.sandboxHomeDir
 import com.rk.file.toFileObject
@@ -277,6 +279,39 @@ fun DrawerContent(fullscreen: Boolean) {
                                     },
                                     label = { Text(tab.getName(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                     enabled = tab.isEnabled(),
+                                )
+                            }
+
+                            // Maximize / restore the drawer width. Only meaningful for the modal
+                            // (overlay) drawer; the permanent drawer has a fixed layout.
+                            if (!isPermanentDrawer) {
+                                NavigationRailItem(
+                                    selected = false,
+                                    icon = {
+                                        Icon(
+                                            painter =
+                                                painterResource(
+                                                    if (isDrawerExpanded) drawables.chevron_left
+                                                    else drawables.chevron_right
+                                                ),
+                                            contentDescription =
+                                                stringResource(
+                                                    if (isDrawerExpanded) strings.collapse_drawer
+                                                    else strings.expand_drawer
+                                                ),
+                                        )
+                                    },
+                                    onClick = { isDrawerExpanded = !isDrawerExpanded },
+                                    label = {
+                                        Text(
+                                            stringResource(
+                                                if (isDrawerExpanded) strings.collapse_drawer
+                                                else strings.expand_drawer
+                                            ),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    },
                                 )
                             }
                         }

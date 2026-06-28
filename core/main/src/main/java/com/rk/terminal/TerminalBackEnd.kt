@@ -6,6 +6,7 @@ import android.view.MotionEvent
 import com.blankj.utilcode.util.ClipboardUtils
 import com.blankj.utilcode.util.KeyboardUtils
 import com.rk.activities.terminal.Terminal
+import com.rk.runner.RunOutputState
 import com.rk.settings.Settings
 import com.rk.settings.terminal.TerminalCursorStyle
 import com.rk.terminal.virtualkeys.SpecialButton
@@ -17,11 +18,20 @@ import com.termux.view.TerminalViewClient
 class TerminalBackEnd : TerminalViewClient, TerminalSessionClient {
     override fun onTextChanged(changedSession: TerminalSession) {
         terminalView.get()?.onScreenUpdated()
+        if (RunOutputState.isTracked(changedSession)) {
+            runCatching { changedSession.emulator?.screen?.transcriptTextWithoutJoinedLines }
+                .getOrNull()
+                ?.let { RunOutputState.onOutput(it) }
+        }
     }
 
     override fun onTitleChanged(changedSession: TerminalSession) {}
 
-    override fun onSessionFinished(finishedSession: TerminalSession) {}
+    override fun onSessionFinished(finishedSession: TerminalSession) {
+        if (RunOutputState.isTracked(finishedSession)) {
+            RunOutputState.onFinished()
+        }
+    }
 
     override fun onCopyTextToClipboard(session: TerminalSession, text: String) {
         ClipboardUtils.copyText("Terminal", text)

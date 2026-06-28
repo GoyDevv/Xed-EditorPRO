@@ -61,6 +61,7 @@ import com.rk.filetree.MultiFileAction
 import com.rk.filetree.MultiFileActionContext
 import com.rk.icons.XedIcon
 import com.rk.resources.drawables
+import com.rk.runner.RunOutputView
 import com.rk.resources.getString
 import com.rk.resources.strings
 import com.rk.settings.Settings
@@ -218,14 +219,19 @@ fun MainContent(
 
             HorizontalDivider()
 
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize().clipToBounds(),
-                beyondViewportPageCount = visibleTabs.size,
-                userScrollEnabled = false,
-                key = { visibleTabs.getOrNull(it).hashCode() },
-            ) { page ->
-                visibleTabs.getOrNull(page)?.Content()
+            Box(modifier = Modifier.fillMaxSize()) {
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize().clipToBounds(),
+                    beyondViewportPageCount = visibleTabs.size,
+                    userScrollEnabled = false,
+                    key = { visibleTabs.getOrNull(it).hashCode() },
+                ) { page ->
+                    visibleTabs.getOrNull(page)?.Content()
+                }
+
+                // Floating build/run progress, fed live from the terminal session.
+                RunOutputView(modifier = Modifier.align(Alignment.BottomCenter))
             }
         }
     }
