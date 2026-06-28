@@ -2,6 +2,7 @@ package com.rk.runner
 
 import android.app.Activity
 import com.rk.exec.TerminalCommand
+import com.rk.exec.isTerminalInstalled
 import com.rk.exec.launchTerminal
 import com.rk.file.FileObject
 import com.rk.file.FileWrapper
@@ -81,36 +82,43 @@ object ProjectRunner {
             return
         }
 
-        // Everything else runs/builds in the terminal sandbox, rooted at the project folder.
+        // Everything else runs/builds in the sandbox, rooted at the project folder.
         // Translate shared-storage paths to /sdcard, which the sandbox binds reliably (the canonical
         // /storage/emulated/0 path is not always reachable inside proot, which caused the
         // "Cannot enter project directory" error).
         setupAssetFile("project_runner")
         val sandboxRoot = toSandboxPath(rootPath)
         val sandboxFile = toSandboxPath(file.getAbsolutePath())
-        val sessionId = "Run · ${rootFile.name}"
-        // Surface live progress in the editor's floating build view while this runs in the terminal.
-        // begin() also enforces the single-build rule: if a build is already running, bail out
-        // instead of launching a second terminal session.
-        if (!RunOutputState.begin(label = sessionId, sessionId = sessionId)) return
-        launchTerminal(
-            activity = activity,
-            terminalCommand =
-                TerminalCommand(
-                    sandbox = true,
-                    exe = "/bin/bash",
-                    args =
-                        arrayOf(
-                            localBinDir().child("project_runner").absolutePath,
-                            type.name,
-                            sandboxRoot,
-                            sandboxFile,
-                        ),
-                    id = sessionId,
-                    terminatePreviousSession = true,
-                    workingDir = sandboxRoot,
-                ),
-        )
+        val label = "Run · ${rootFile.name}"
+        val scriptPath = localBinDir().child("project_runner").absolutePath
+
+        if (isTerminalInstalled()) {
+            // Run headlessly in the background: no terminal screen is shown. Output and progress are
+            // surfaced through the editor's floating build view + a notification (RunService).
+            // begin() also enforces the single-build rule.
+            if (!RunOutputState.begin(label = label)) return
+            RunService.start(
+                context = activity,
+                label = label,
+                workingDir = sandboxRoot,
+                args = arrayListOf("/bin/bash", "-l", scriptPath, type.name, sandboxRoot, sandboxFile),
+            )
+        } else {
+            // Sandbox isn't set up yet — fall back to the terminal so the rootfs can be downloaded
+            // and extracted (that flow needs the terminal UI). The floating view isn't used here.
+            launchTerminal(
+                activity = activity,
+                terminalCommand =
+                    TerminalCommand(
+                        sandbox = true,
+                        exe = "/bin/bash",
+                        args = arrayOf(scriptPath, type.name, sandboxRoot, sandboxFile),
+                        id = label,
+                        terminatePreviousSession = true,
+                        workingDir = sandboxRoot,
+                    ),
+            )
+        }
     }
 
     /**

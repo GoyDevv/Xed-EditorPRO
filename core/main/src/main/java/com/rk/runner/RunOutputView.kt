@@ -1,18 +1,31 @@
 package com.rk.runner
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -28,11 +41,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -46,107 +58,85 @@ import com.rk.resources.strings
 import com.rk.utils.toast
 
 /**
- * Floating build/run progress view shown at the bottom of the editor.
+ * Floating build/run view shown at the bottom of the editor while a background build runs.
  *
- * Collapsed it is a single bar showing the run label, a live progress indicator and the latest
- * output line. Tapping it (or the chevron) smoothly expands it to cover roughly half the screen and
- * reveals the full, scrollable and selectable (copyable) terminal output. The output persists after
- * the process finishes and is replaced only when the next run starts. Backed by [RunOutputState].
+ * Collapsed it's a slim "glass" bar (drag handle + label + live progress + latest output line).
+ * Swiping up — or tapping it — springs it open (with a soft bounce) to ~half the screen, revealing
+ * the full, selectable/copyable output; swiping down from the handle closes it. While the keyboard
+ * is open it docks flush to the bottom above the IME; otherwise it floats with rounded corners. The
+ * editor behind it is blurred while expanded (see MainContent). Backed by [RunOutputState].
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun RunOutputView(modifier: Modifier = Modifier) {
     if (!RunOutputState.isActive) return
 
-    var expanded by rememberSaveable { mutableStateOf(false) }
+    val expanded = RunOutputState.expanded
+    val imeVisible = WindowInsets.isImeVisible
 
     val configuration = LocalConfiguration.current
     val expandedHeight = (configuration.screenHeightDp * 0.5f).dp
     val contentHeight by
-        animateDpAsState(targetValue = if (expanded) expandedHeight else 0.dp, label = "runOutputHeight")
+        animateDpAsState(
+            targetValue = if (expanded) expandedHeight else 0.dp,
+            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+            label = "runOutputHeight",
+        )
 
     val scrollState = rememberScrollState()
-
-    // Keep the expanded view pinned to the newest output as it streams in.
     LaunchedEffect(RunOutputState.output, expanded) {
         if (expanded) scrollState.animateScrollTo(scrollState.maxValue)
     }
 
+    val floating = !imeVisible
+    val corner = if (floating) 20.dp else 0.dp
+
     Surface(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(horizontal = if (floating) 8.dp else 0.dp, vertical = if (floating) 8.dp else 0.dp),
+        shape =
+            RoundedCornerShape(
+                topStart = corner,
+                topEnd = corner,
+                bottomStart = corner,
+                bottomEnd = corner,
+            ),
+        // Frosted-glass-ish translucent container; sits above the blurred editor when expanded.
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.94f),
         tonalElevation = 3.dp,
-        shadowElevation = 6.dp,
+        shadowElevation = 8.dp,
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // Header / collapsed bar
-            Row(
-                modifier =
-                    Modifier.fillMaxWidth()
-                        .clickable { expanded = !expanded }
-                        .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
+        Column(
+            modifier =
+                Modifier.fillMaxWidth().pointerInput(Unit) {
+                    var total = 0f
+                    detectVerticalDragGestures(
+                        onDragStart = { total = 0f },
+                        onVerticalDrag = { _, dy -> total += dy },
+                        onDragEnd = {
+                            if (total < -40f) RunOutputState.expanded = true
+                            else if (total > 40f) RunOutputState.expanded = false
+                        },
+                    )
+                }
+        ) {
+            // Drag handle ("____").
+            Box(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 2.dp),
+                contentAlignment = Alignment.Center,
             ) {
-                if (RunOutputState.isRunning) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                } else {
-                    Icon(
-                        painter = painterResource(drawables.run),
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(10.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = RunOutputState.label.ifBlank { stringResource(strings.build_output) },
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text =
-                            RunOutputState.latestLine.ifBlank {
-                                if (RunOutputState.isRunning) stringResource(strings.running)
-                                else stringResource(strings.finished)
-                            },
-                        style = MaterialTheme.typography.bodySmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-
-                if (RunOutputState.isRunning) {
-                    IconButton(onClick = { RunOutputState.stop() }) {
-                        Icon(
-                            painter = painterResource(drawables.stop),
-                            contentDescription = stringResource(strings.stop),
-                        )
-                    }
-                } else {
-                    IconButton(onClick = { RunOutputState.dismiss() }) {
-                        Icon(
-                            painter = painterResource(drawables.close),
-                            contentDescription = stringResource(strings.dismiss),
-                        )
-                    }
-                }
-
-                IconButton(onClick = { expanded = !expanded }) {
-                    Icon(
-                        painter =
-                            painterResource(if (expanded) drawables.chevron_down else drawables.chevron_up),
-                        contentDescription =
-                            stringResource(if (expanded) strings.collapse else strings.expand),
-                    )
-                }
+                Box(
+                    modifier =
+                        Modifier.width(36.dp)
+                            .height(4.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                )
             }
+
+            Header(expanded)
 
             if (RunOutputState.isRunning) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
@@ -154,7 +144,6 @@ fun RunOutputView(modifier: Modifier = Modifier) {
                 HorizontalDivider()
             }
 
-            // Expandable output area
             Column(modifier = Modifier.fillMaxWidth().height(contentHeight)) {
                 if (contentHeight > 0.dp) {
                     SelectionContainer(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -165,9 +154,7 @@ fun RunOutputView(modifier: Modifier = Modifier) {
                             fontFamily = FontFamily.Monospace,
                         )
                     }
-
                     HorizontalDivider()
-
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
                         horizontalArrangement = Arrangement.End,
@@ -190,6 +177,77 @@ fun RunOutputView(modifier: Modifier = Modifier) {
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun Header(expanded: Boolean) {
+    Row(
+        modifier =
+            Modifier.fillMaxWidth()
+                .clickable { RunOutputState.expanded = !RunOutputState.expanded }
+                .padding(start = 12.dp, end = 4.dp, top = 2.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (RunOutputState.isRunning) {
+            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+        } else {
+            val ok = RunOutputState.exitCode == 0
+            Icon(
+                painter = painterResource(drawables.run),
+                contentDescription = null,
+                tint = if (ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+
+        Spacer(modifier = Modifier.width(10.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = RunOutputState.label.ifBlank { stringResource(strings.build_output) },
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            // Animated latest line (fades between updates).
+            AnimatedContent(
+                targetState =
+                    RunOutputState.latestLine.ifBlank {
+                        if (RunOutputState.isRunning) stringResource(strings.running)
+                        else stringResource(strings.finished)
+                    },
+                transitionSpec = { fadeIn() togetherWith fadeOut() },
+                label = "latestLine",
+            ) { line ->
+                Text(
+                    text = line,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+
+        if (RunOutputState.isRunning) {
+            IconButton(onClick = { RunOutputState.stop() }) {
+                Icon(painter = painterResource(drawables.stop), contentDescription = stringResource(strings.stop))
+            }
+        } else {
+            IconButton(onClick = { RunOutputState.dismiss() }) {
+                Icon(painter = painterResource(drawables.close), contentDescription = stringResource(strings.dismiss))
+            }
+        }
+
+        IconButton(onClick = { RunOutputState.expanded = !expanded }) {
+            Icon(
+                painter = painterResource(if (expanded) drawables.chevron_down else drawables.chevron_up),
+                contentDescription = stringResource(if (expanded) strings.collapse else strings.expand),
+            )
         }
     }
 }

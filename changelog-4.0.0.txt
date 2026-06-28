@@ -160,3 +160,61 @@ Notes
 - Local build was not possible in the dev environment (needs JDK 21 + Android SDK
   platform 37 + NDK 29); verification is done via GitHub Actions CI.
 - No existing features were removed; manual terminal usage and concurrent shells still work.
+
+================================================================================
+7. First-launch Auto Setup
+================================================================================
+Goal: on first launch (after the disclaimer), offer to automatically set up the Linux
+sandbox and install the core tools the IDE needs, so the terminal/build features don't
+break later. The user can agree or skip; skipping warns that things may break with no
+support for manual fixes.
+
+Flow:
+- A consent dialog shows estimated storage and download size, and (after a quick internet
+  speed probe) an estimated time. Buttons: "Auto Setup" / "Not now".
+- "Not now" → a warning ("the IDE may break in the future, no support for manual fixes"),
+  then dismisses and the app behaves as a normal editor (won't nag again).
+- "Auto Setup" → opens the terminal, which downloads/extracts the sandbox (existing flow)
+  and then runs apt update + apt upgrade + installs curl, git, wget (and tar, unzip, nano,
+  ca-certificates). A clean full-screen progress overlay shows live progress on top of the
+  terminal (which runs behind it).
+- On success → "Setup complete" with a 5-second countdown, then the app closes so the user
+  restarts fresh.
+- On error → the overlay offers "Report on GitHub", opening a prefilled issue on
+  https://github.com/GoyDevv/Xed-EditorPRO with the failure log and device info
+  (model, manufacturer, Android version, ABIs, locale/country/timezone).
+
+Files:
+- core/main/.../settings/Settings.kt — new flags: auto_setup_completed, auto_setup_prompt_dismissed.
+- core/resources/.../values/strings.xml — auto_setup_* strings.
+- core/main/.../terminal/AutoSetupState.kt (new) — observable phase/progress/status/log; parses
+  the script markers (__XEDPROGRESS__ / __XEDDONE__ / __XEDERROR__); tracks the session.
+- core/main/.../assets/terminal/auto_setup.sh (new) — the apt update/upgrade/install script that
+  emits the progress markers and verifies the tools were installed.
+- core/main/.../terminal/AutoSetup.kt (new) — launch(); estimate() (HEAD content-length + a short
+  speed sample via OkHttp, with safe offline fallbacks); issueUrl() (prefilled GitHub issue + device
+  info); SetupEstimate.
+- core/main/.../terminal/TerminalBackEnd.kt — feeds AutoSetupState (output + finish), alongside the
+  build/run tracking.
+- core/main/.../terminal/TerminalScreen.kt — attaches the auto-setup session when its id matches.
+- core/main/.../terminal/AutoSetupOverlay.kt (new) — the live progress overlay + done countdown
+  (closes the app) + error/report UI.
+- core/main/.../activities/terminal/Terminal.kt — overlays AutoSetupOverlay while setup is active.
+- core/main/.../activities/main/AutoSetupDialog.kt (new) — the consent dialog with estimate + speed
+  ETA + the decline warning.
+- core/main/.../activities/main/MainContent.kt — shows the dialog on first launch (until completed
+  or skipped).
+
+================================================================================
+8. GitHub links repointed to GoyDevv/Xed-EditorPRO
+================================================================================
+Repointed the app's GitHub identity links to https://github.com/GoyDevv/Xed-EditorPRO
+(the current dev's repo):
+- core/main/.../XedConstants.kt — added GITHUB_REPO constant.
+- core/main/.../UpdateChecker.kt, settings/about/AboutScreen.kt — "update"/"view source" link.
+- core/main/.../crashhandler/CrashActivity.kt — default crash-report repo.
+- core/main/.../settings/debugOptions/LogScreen.kt — issue report URL.
+- core/main/.../settings/terminal/TerminalCheckScreen.kt — now opens the repo's issues page.
+- README.md — CI badge, download count, Actions/Releases links, contributors.
+Left unchanged (intentionally): the soraX submodule URL (a separate dependency library) and the
+rootfs/extension/theme infra URLs (ROOTFS_BASE, *_API_BASE), which are not repo-identity links.

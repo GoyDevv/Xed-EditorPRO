@@ -71,7 +71,6 @@ import com.rk.activities.terminal.Terminal
 import com.rk.animations.NavigationAnimationTransitions
 import com.rk.editor.FontCache
 import com.rk.exec.pendingCommand
-import com.rk.runner.RunOutputState
 import com.rk.file.child
 import com.rk.file.sandboxDir
 import com.rk.resources.strings
@@ -298,8 +297,8 @@ private fun ColumnScope.TerminalView(
 
                 // If this is the run/build session the editor's floating view is waiting for, hook
                 // it up so live output is mirrored there even after the user leaves the terminal.
-                if (pendingId != null && pendingId == RunOutputState.expectedSessionId) {
-                    RunOutputState.attach(session)
+                if (pendingId != null && pendingId == AutoSetupState.expectedSessionId) {
+                    AutoSetupState.attach(session)
                 }
 
                 // Legacy behavior

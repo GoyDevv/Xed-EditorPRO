@@ -740,4 +740,28 @@
     <string name="expand">Expand</string>
     <string name="collapse">Collapse</string>
     <string name="dismiss">Dismiss</string>
+    <!-- Auto Setup -->
+    <string name="auto_setup_title">Set up your environment</string>
+    <string name="auto_setup_message">Xed-Editor can automatically set up its Linux sandbox and install the core tools (curl, git, wget and updates) it needs to build and run code. This one-time setup keeps the terminal from breaking later.</string>
+    <string name="auto_setup_storage">Estimated storage</string>
+    <string name="auto_setup_data">Estimated download</string>
+    <string name="auto_setup_eta">Estimated time</string>
+    <string name="auto_setup_checking_speed">Checking your internet speed…</string>
+    <string name="auto_setup_eta_unknown">Depends on your internet speed</string>
+    <string name="auto_setup_start">Auto Setup</string>
+    <string name="auto_setup_skip">Not now</string>
+    <string name="auto_setup_decline_title">Skip setup?</string>
+    <string name="auto_setup_decline_message">Without this setup the IDE\'s terminal and build features may break in the future, and you will have to fix it manually. There is no support for manual fixes. You can continue using Xed-Editor as a normal editor.</string>
+    <string name="auto_setup_decline_confirm">Skip anyway</string>
+    <string name="auto_setup_go_back">Go back</string>
+    <string name="auto_setup_running_title">Setting up…</string>
+    <string name="auto_setup_running_hint">Please keep the app open. This may take a few minutes depending on your connection.</string>
+    <string name="auto_setup_done_title">Setup complete</string>
+    <string name="auto_setup_done_message">Your environment is ready. The app will close so you can restart it.</string>
+    <string name="auto_setup_closing_in">Closing in %1$d…</string>
+    <string name="auto_setup_error_title">Setup failed</string>
+    <string name="auto_setup_error_message">Something went wrong during setup. You can report this on GitHub with the log attached so we can help.</string>
+    <string name="auto_setup_report">Report on GitHub</string>
+    <string name="auto_setup_close">Close</string>
+    <string name="approx">~%1$s</string>
 </resources>

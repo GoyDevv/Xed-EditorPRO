@@ -36,6 +36,10 @@ object Settings {
 
     var read_only_default by CachedPreference("read_only_default", false)
     var shown_disclaimer by CachedPreference("shown_disclaimer", false)
+    // First-launch Auto Setup: whether the one-time environment setup completed successfully, and
+    // whether the user dismissed/declined the prompt (so we don't keep nagging on every launch).
+    var auto_setup_completed by CachedPreference("auto_setup_completed", false)
+    var auto_setup_prompt_dismissed by CachedPreference("auto_setup_prompt_dismissed", false)
     var warn_extensions by CachedPreference("warn_extensions", true)
     var amoled by CachedPreference("amoled", false)
     var monet by CachedPreference("monet", false)

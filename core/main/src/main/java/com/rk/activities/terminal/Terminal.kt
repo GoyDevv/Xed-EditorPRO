@@ -51,6 +51,8 @@ import com.rk.file.sandboxDir
 import com.rk.resources.getString
 import com.rk.resources.strings
 import com.rk.terminal.NEXT_STAGE
+import com.rk.terminal.AutoSetupOverlay
+import com.rk.terminal.AutoSetupState
 import com.rk.terminal.SessionService
 import com.rk.terminal.TerminalBackEnd
 import com.rk.terminal.TerminalScreen
@@ -172,11 +174,18 @@ class Terminal : AppCompatActivity() {
         setContent {
             XedTheme {
                 Surface {
-                    if (sessionBinder != null) {
-                        TerminalScreenHost(this)
-                    } else {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("Error: No service connection")
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        if (sessionBinder != null) {
+                            TerminalScreenHost(this@Terminal)
+                        } else {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text("Error: No service connection")
+                            }
+                        }
+
+                        // Auto Setup progress overlay (runs the terminal behind a clean progress UI).
+                        if (AutoSetupState.isActive) {
+                            AutoSetupOverlay(activity = this@Terminal)
                         }
                     }
                 }

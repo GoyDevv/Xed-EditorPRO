@@ -1,6 +1,7 @@
 package com.rk.activities.main
 
 import androidx.compose.foundation.background
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -30,9 +31,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -61,6 +64,7 @@ import com.rk.filetree.MultiFileAction
 import com.rk.filetree.MultiFileActionContext
 import com.rk.icons.XedIcon
 import com.rk.resources.drawables
+import com.rk.runner.RunOutputState
 import com.rk.runner.RunOutputView
 import com.rk.resources.getString
 import com.rk.resources.strings
@@ -87,6 +91,21 @@ fun MainContent(
     preloadSelectionColor()
 
     FileActionDialogs(drawerViewModel, fileTreeViewModel, scope, context)
+
+    // First-launch Auto Setup prompt: offer to set up the sandbox + core tools once. Shown until
+    // the user completes it or explicitly skips it.
+    var showAutoSetup by rememberSaveable {
+        mutableStateOf(!Settings.auto_setup_completed && !Settings.auto_setup_prompt_dismissed)
+    }
+    if (showAutoSetup) {
+        AutoSetupDialog(
+            onLaunch = { showAutoSetup = false },
+            onDismissForever = {
+                Settings.auto_setup_prompt_dismissed = true
+                showAutoSetup = false
+            },
+        )
+    }
 
     if (mainViewModel.isDraggingPalette || mainViewModel.showCommandPalette) {
         val lastUsedCommand = CommandProvider.getForId(Settings.last_used_command)
@@ -219,10 +238,17 @@ fun MainContent(
 
             HorizontalDivider()
 
+            // Blur the editor behind the build view while it's expanded (API 31+; no-op below).
+            val editorBlur by
+                animateDpAsState(
+                    targetValue = if (RunOutputState.isActive && RunOutputState.expanded) 12.dp else 0.dp,
+                    label = "editorBlur",
+                )
+
             Box(modifier = Modifier.fillMaxSize()) {
                 HorizontalPager(
                     state = pagerState,
-                    modifier = Modifier.fillMaxSize().clipToBounds(),
+                    modifier = Modifier.fillMaxSize().clipToBounds().blur(editorBlur),
                     beyondViewportPageCount = visibleTabs.size,
                     userScrollEnabled = false,
                     key = { visibleTabs.getOrNull(it).hashCode() },
@@ -230,7 +256,7 @@ fun MainContent(
                     visibleTabs.getOrNull(page)?.Content()
                 }
 
-                // Floating build/run progress, fed live from the terminal session.
+                // Floating, background build/run progress (fed by RunService); no terminal needed.
                 RunOutputView(modifier = Modifier.align(Alignment.BottomCenter))
             }
         }

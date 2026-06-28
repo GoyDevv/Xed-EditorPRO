@@ -1,0 +1,67 @@
+Xed-Editor PRO — Changelog
+Version 4.0.1 (versionCode 100)
+
+Patch release focused on the Run button / build experience.
+
+================================================================================
+1. Builds now run in the BACKGROUND — the terminal no longer opens in your face
+================================================================================
+Previously the Run button launched the full terminal screen. Now, when the sandbox is
+already set up, a build runs headlessly inside the sandbox and the editor stays in front,
+with the floating build view as the primary UI.
+
+- core/main/.../runner/RunService.kt (new) — a foreground service that runs the project via
+  `ubuntuProcess` (headless sandbox, no terminal UI), streams stdout+stderr live into
+  RunOutputState, and posts a progress notification with a "Stop" action. Because it's a
+  started foreground service, the build keeps running if you leave the app.
+- app/src/main/AndroidManifest.xml — declared RunService (foregroundServiceType=specialUse).
+- core/main/.../runner/ProjectRunner.kt — when the sandbox is installed, runs via RunService
+  (background, no terminal). Only falls back to opening the terminal when the sandbox isn't
+  set up yet (that flow needs the terminal UI to download/extract the rootfs).
+- Single-build rule preserved: RunOutputState.begin() is the atomic gate, and the Run button
+  still turns into a Stop button while a build runs. The floating view only ever reflects the
+  Run button's build — never other terminal sessions.
+
+================================================================================
+2. RunOutputState refactored to be process-fed
+================================================================================
+- core/main/.../runner/RunOutputState.kt — no longer coupled to a terminal session. It now
+  exposes begin(label) (atomic gate), onOutput(fullText), onFinished(exitCode), stop() (via a
+  pluggable stopper the service sets), exitCode, and an `expanded` UI flag. Output is ANSI-
+  stripped, so the "INFO" lines and colors render cleanly instead of showing escape codes.
+- core/main/.../terminal/TerminalBackEnd.kt and TerminalScreen.kt — removed the old
+  RunOutputState session hooks (runs no longer create terminal sessions). AutoSetup still uses
+  its own terminal-session tracking.
+
+================================================================================
+3. Floating build view overhaul (RunOutputView)
+================================================================================
+- Cleaner, frosted/translucent "glass" container.
+- ANSI escape codes stripped from the output (fixes the ugly INFO/color sequences).
+- Keyboard-aware: floats with rounded corners + margins normally, and docks flush to the
+  bottom (above the IME) while the keyboard is open.
+- Spring/bounce open animation (DampingRatioMediumBouncy) instead of a flat slide.
+- Drag handle ("____") at the top + swipe gestures: swipe up to open, swipe down to close
+  (tapping the bar/chevron still toggles too).
+- The editor behind the view is blurred while it's expanded (API 31+; no-op below), which
+  looks great while scrolling the log. (core/main/.../activities/main/MainContent.kt)
+- The latest output line fades between updates (AnimatedContent).
+- Status glyph reflects success/failure (green/red) once finished; Stop while running,
+  Dismiss once finished; Copy copies the full output.
+
+================================================================================
+4. Version
+================================================================================
+- app/build.gradle.kts — versionName 4.0.0 -> 4.0.1, versionCode 99 -> 100.
+
+================================================================================
+Notes / answer to "is the dependency downloader global or per-project?"
+================================================================================
+The in-app dependency downloader installs tools GLOBALLY inside the single shared Ubuntu
+sandbox (apt-get install), so python3 / node / JDK / cargo / go are available to every
+project once installed. The dialog only filters the shown catalog by the currently-open
+project's detected type. Genuinely per-project pieces (pip `requirements.txt`, npm
+`node_modules`) are handled by the run script inside each project's folder.
+
+Local build wasn't possible in the dev environment (JDK 21 + SDK 37 + NDK 29); verification
+is via GitHub Actions CI.

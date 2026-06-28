@@ -53,6 +53,10 @@
             android:name="com.rk.projects.DependencyInstallService"
             android:foregroundServiceType="specialUse" />
 
+        <service
+            android:name="com.rk.runner.RunService"
+            android:foregroundServiceType="specialUse" />
+
         <activity
             android:name="com.rk.activities.main.MainActivity"
             android:alwaysRetainTaskState="true"

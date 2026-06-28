@@ -6,8 +6,8 @@
 LSP-powered code intelligence, a built-in terminal, extensions, and fast project-wide tools for
 efficient editing.
 
-![Android CI](https://github.com/Rohitkushvaha01/Xed-Editor/actions/workflows/android.yml/badge.svg?event=push&style=for-the-badge)
-![Download count](https://img.shields.io/github/downloads/Xed-Editor/Xed-Editor/total?label=Downloads)
+![Android CI](https://github.com/GoyDevv/Xed-EditorPRO/actions/workflows/android.yml/badge.svg?event=push&style=for-the-badge)
+![Download count](https://img.shields.io/github/downloads/GoyDevv/Xed-EditorPRO/total?label=Downloads)
 
 ---
 
@@ -32,13 +32,13 @@ documentation: https://xed-editor.github.io/Xed-Docs/
   </a>
 </div>
 
-- **Latest Alpha Build**: Download from [Actions](https://github.com/Xed-Editor/Xed-Editor/actions/)
+- **Latest Alpha Build**: Download from [Actions](https://github.com/GoyDevv/Xed-EditorPRO/actions/)
 - **Latest Stable Build**: Download
-  from [Releases](https://github.com/Xed-Editor/Xed-Editor/releases)
+  from [Releases](https://github.com/GoyDevv/Xed-EditorPRO/releases)
 
 [<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="80">](https://f-droid.org/packages/com.rk.xededitor)
 [<img src="https://gitlab.com/IzzyOnDroid/repo/-/raw/master/assets/IzzyOnDroid.png?ref_type=heads" alt="Get it on IzzyOnDroid" height="80">](https://apt.izzysoft.de/fdroid/index/apk/com.rk.xededitor)
-[<img src="https://raw.githubusercontent.com/Kunzisoft/Github-badge/main/get-it-on-github.png" alt="Get it on GitHub" height="80">](https://github.com/Xed-Editor/Xed-Editor/releases/latest)
+[<img src="https://raw.githubusercontent.com/Kunzisoft/Github-badge/main/get-it-on-github.png" alt="Get it on GitHub" height="80">](https://github.com/GoyDevv/Xed-EditorPRO/releases/latest)
 
 ---
 
@@ -99,6 +99,6 @@ started:
 
 ## Contributors
 
-<a href="https://github.com/Xed-Editor/Xed-Editor/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=Xed-Editor/Xed-Editor" />
+<a href="https://github.com/GoyDevv/Xed-EditorPRO/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=GoyDevv/Xed-EditorPRO" />
 </a>
