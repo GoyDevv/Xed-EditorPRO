@@ -1,0 +1,55 @@
+Xed-Editor PRO — Changelog
+Version 4.1.0 (versionCode 107)
+
+NEW: AI Agent (Claude-Code-style), Phase 1.
+
+================================================================================
+What it is
+================================================================================
+A provider-agnostic AI coding agent built on the OpenAI-compatible standard (chat completions +
+function/tool calling), so one API key can drive many models AND let the model use real tools
+(read/write files, run commands) — exactly how OpenCode/Claude Code work. The model only *requests*
+tools; the app executes them locally behind a permission prompt.
+
+Providers (presets): OpenAI (Codex/GPT), Google Gemini (its OpenAI-compatible endpoint), OpenRouter
+(gives Claude/Gemini/GPT via one key), and Custom (any OpenAI-compatible base URL — use this for any
+other gateway). A literal "Kiro key" isn't a documented public HTTP API, so it isn't a preset; point
+Custom at a Kiro→OpenAI gateway if you have one.
+
+================================================================================
+How it works (files, all under com.rk.ai)
+================================================================================
+- AiProviders.kt — provider presets + per-model context-window estimates (for "% used").
+- AiPrefs.kt — local storage of API keys (per provider), selected provider/model, custom base URL,
+  and the per-tool permission policy (ask / always / never).
+- AiClient.kt — OkHttp + org.json: GET /models (verify key + populate the model dropdown live) and
+  POST /chat/completions with tools + usage. No new dependencies.
+- AiMessage.kt — message/tool-call data types mapped to the OpenAI format.
+- AiTools.kt — the tools the model can call: read_file, write_file, list_dir, run_command (runs in
+  the Linux sandbox via ShellUtils.runUbuntu). Each has a JSON schema.
+- AiViewModel.kt — the agent loop: send → model returns tool_calls → permission gate → execute →
+  feed results back → repeat (max 16 steps); tracks token usage and in-memory chat sessions.
+- AiTab.kt — the UI: a new "AI" service tab in the drawer **above Git**. Auto-maximizes the drawer.
+  Add-key dialog (provider dropdown + key, "Verify & save" calls /models). Chat: messages in the
+  middle (assistant text + tool steps + tool output), a composer showing the current directory,
+  a model dropdown (live list), "% used", and a send button. Top-left button lists chat sessions to
+  switch between; permission dialog with "Don't ask again".
+- DrawerViewModel.kt — registers AiTab above Git in the service rail.
+
+================================================================================
+Scope / what's next (Phase 2+)
+================================================================================
+- Phase 1 is non-streaming (responses appear per step; the stepwise tool execution gives the
+  "thinking" feel). Token streaming (SSE) comes next.
+- Chat sessions are in-memory for now; on-disk persistence is next.
+- A dedicated background terminal session for the agent + its own notification, and a Settings
+  screen to manage providers/keys, are next.
+
+================================================================================
+Version
+================================================================================
+- app/build.gradle.kts — versionName 4.0.7 -> 4.1.0, versionCode 106 -> 107.
+
+Local build wasn't possible in the dev environment; verification is via GitHub Actions CI. This is
+a large new module — if CI flags anything, the likely spots are the OkHttp/org.json client and the
+AiTab Compose UI; send the log and I'll fix fast.

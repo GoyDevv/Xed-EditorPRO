@@ -1,0 +1,80 @@
+Xed-Editor PRO — Changelog
+Version 4.1.1 (versionCode 108)
+
+AI Agent — Phase 2 (start): chat persistence. Plus a detailed file map of the whole AI feature.
+See phases.md (repo root) for the full architecture, the original request, and the remaining phases.
+
+================================================================================
+NEW in 4.1.1
+================================================================================
+- core/main/src/main/java/com/rk/ai/AiSessionStore.kt (new)
+  On-disk persistence of chat sessions to {filesDir}/ai_sessions.json (org.json).
+  • StoredSession(id, title, totalTokens, messages)
+  • loadAll(): List<StoredSession>   — call on a background thread
+  • saveAll(list)                    — serializes messages incl. tool calls/results
+  Look here to change WHERE/HOW chats are stored, or the on-disk schema.
+
+- core/main/src/main/java/com/rk/ai/AiViewModel.kt (edited)
+  • init { } now restores saved chats via AiSessionStore.loadAll() and sets currentSessionId.
+  • persist() saves all sessions on a background (IO) coroutine.
+  • persist() is called after newSession() and after every agent turn (send → loop end).
+  Look here for the agent loop, sessions, model/provider state, % used, and the permission gate.
+
+- app/build.gradle.kts: versionName 4.1.0 -> 4.1.1, versionCode 107 -> 108.
+
+================================================================================
+FULL AI-FEATURE FILE MAP (where to look for what) — package com.rk.ai
+================================================================================
+core/main/src/main/java/com/rk/ai/
+- AiProviders.kt   : provider presets (OpenRouter, OpenAI/Codex, Gemini, Custom), AiProvider data
+                     class, byId(), and contextWindow(model) used for "% used".
+                     → ADD A NEW PROVIDER here.
+- AiPrefs.kt       : local storage (app Preference) of API keys per provider, selectedProviderId,
+                     selectedModel, customBaseUrl, baseUrl(provider), and per-tool permission Policy
+                     (ASK/ALWAYS/NEVER). → CHANGE key storage / permission persistence here.
+- AiMessage.kt     : AiMessage(role, content, toolCalls, toolCallId, ui) + AiToolCall(id, name,
+                     arguments). The conversation data model.
+- AiClient.kt      : OkHttp + org.json network layer. listModels() (GET /models, verifies key +
+                     fills the dropdown) and chat() (POST /chat/completions with tools + usage).
+                     → ADD SSE STREAMING here (Phase 2 next step).
+- AiTools.kt       : the tools the model can call — schemas() (JSON sent to the model),
+                     describe(call) (permission/UI text), execute(call, workingDir) (read_file/
+                     write_file/list_dir on real FS; run_command in the sandbox via
+                     ShellUtils.runUbuntu + ProjectRunner.toSandboxPath). → ADD A NEW TOOL here.
+- AiViewModel.kt   : the agent brain — Session model, sessions list, send()/runAgentLoop() (max 16
+                     tool-call iterations), askPermission()/resolvePermission() gate, refreshModels(),
+                     selectProvider/selectModel/newSession/selectSession, percentUsed, persist().
+- AiTab.kt         : the UI (DrawerTab "AI", icon drawables.bolt). AiScreen auto-maximizes the drawer
+                     (isDrawerExpanded), derives workingDir from the current FileTreeTab. Contains:
+                     SetupPrompt, AddKeyDialog (provider dropdown + key + Verify&save→listModels),
+                     MessagesList (user/assistant+tool-steps/tool-result + "Thinking…"),
+                     Composer (📁 dir + model dropdown + "% used" + textfield + send),
+                     SessionsDialog (top-left chats switcher), PermissionDialog (Allow/Deny + never-ask).
+                     getIcon() returns com.rk.icons.Icon FULLY-QUALIFIED to avoid clash with the
+                     material3 Icon composable.
+- AiSessionStore.kt: on-disk chat persistence (see NEW above).
+
+Wiring (outside com.rk.ai):
+- core/main/.../drawer/DrawerViewModel.kt → setupBuiltinServices(): adds com.rk.ai.AiTab() BEFORE
+  GitTab, so AI is above Git in the rail. (Service tabs are rebuilt each launch, not persisted.)
+- core/main/.../drawer/Drawer.kt → the rail's serviceTabs loop + Crossfade that renders the tab content.
+- core/main/.../components/ResponsiveDrawer.kt → isDrawerExpanded (the maximize flag the chat sets).
+
+================================================================================
+HOW IT WORKS (1-paragraph recap; full detail in phases.md)
+================================================================================
+Provider-agnostic OpenAI-compatible client: GET /models (verify + list), POST /chat/completions with
+a tools[] schema array. The model returns tool_calls; the APP executes them locally (permission
+dialog here) and feeds results back as tool messages, looping until final text. Tools run client-side;
+the key only lets the model request them. Kiro's ksk_ key has no public HTTP endpoint, so use the
+Custom provider pointed at a Kiro→OpenAI gateway, or OpenAI/Gemini/OpenRouter directly.
+
+================================================================================
+REMAINING (see phases.md → Phase 2/3)
+================================================================================
+- SSE token streaming (AiClient.chat → stream deltas).
+- Dedicated background agent terminal + its own notification (mirror com.rk.runner.RunService).
+- AI Settings screen (manage providers/keys/default model).
+- Markdown/code-block rendering, more tools (search/diff), cancel/stop a turn, MCP (optional).
+
+Local build wasn't possible in the dev environment; verification is via GitHub Actions CI.

@@ -1,0 +1,48 @@
+Xed-Editor PRO — Changelog
+Version 4.1.4 (versionCode 111)
+
+AI Agent — Phase 2: background agent notification (the "AI is using the terminal; you can kill it").
+
+>>> BUILD NOTE: does NOT build locally (no JDK 21 / SDK 37 / NDK in our dev env). Verified ONLY by
+>>> GitHub Actions CI. Everything is written blind and validated by CI.
+
+================================================================================
+NEW in 4.1.4
+================================================================================
+- core/main/src/main/java/com/rk/ai/AiAgentService.kt (new)
+  Foreground service shown while the agent is working (mirrors com.rk.runner.RunService /
+  DependencyInstallService pattern, which CI already builds). Notification "AI agent · Working …"
+  with a **Stop** action; keeps the turn alive if the app is backgrounded. Channel "ai_agent_channel",
+  id 7423. Includes AiAgentBus (a same-process callback holder): the notification's Stop action calls
+  AiAgentBus.onStop.
+- core/main/src/main/java/com/rk/ai/AiViewModel.kt (edited)
+  • init registers AiAgentBus.onStop = { stop() }.
+  • send() calls AiAgentService.start(app, "Working · <model>") before the turn and
+    AiAgentService.stop(app) when it ends; stop() also stops the service.
+- app/src/main/AndroidManifest.xml: declared com.rk.ai.AiAgentService (foregroundServiceType=specialUse).
+  (REQUEST/FOREGROUND_SERVICE perms already present from earlier services.)
+- app/build.gradle.kts: 4.1.3 -> 4.1.4 (versionCode 110 -> 111).
+- phases.md: agent terminal/notification item updated to [~] partial with what remains.
+
+How it behaves: send a message → an ongoing "AI agent" notification appears; tapping it opens the app;
+tapping Stop cancels the turn (AiAgentBus → AiViewModel.stop()). The notification clears when the turn
+finishes or is stopped. run_command still runs in the Linux sandbox (ShellUtils.runUbuntu) within the
+turn.
+
+================================================================================
+AI feature timeline (full detail in phases.md, repo root)
+================================================================================
+4.1.0  Phase 1  — engine (AiProviders/AiPrefs/AiMessage/AiClient/AiTools/AiViewModel/AiTab) + "AI"
+                  drawer tab above Git + tool-calling loop + permission dialog.
+4.1.1  Phase 2  — on-disk chat persistence (AiSessionStore).
+4.1.2  Phase 2  — SSE token streaming (AiClient.chatStream + live placeholder).
+4.1.3  Phase 2/3— stop/cancel a running turn (send button ↔ Stop button).
+4.1.4  Phase 2  — background agent foreground-service + Stop notification (this file).
+
+================================================================================
+REMAINING (phases.md)
+================================================================================
+- Persistent agent terminal across turns the user can kill + AI can restart; per-command notification
+  text; true in-flight OkHttp Call cancel.
+- AI Settings screen (manage providers/keys/default model/permission resets) under Settings routes.
+- Markdown/code-block rendering of assistant replies; more tools (search/diff/move/delete); MCP (opt).

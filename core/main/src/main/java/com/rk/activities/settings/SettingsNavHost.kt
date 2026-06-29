@@ -121,5 +121,6 @@ fun SettingsNavHost(navController: NavHostController, activity: SettingsActivity
             ExtensionSettings(extension)
         }
         composable(SettingsRoutes.Git.route) { GitSettings() }
+        composable(SettingsRoutes.Ai.route) { com.rk.ai.AiSettingsScreen() }
     }
 }
