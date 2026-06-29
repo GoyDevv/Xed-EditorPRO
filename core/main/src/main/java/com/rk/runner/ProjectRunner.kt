@@ -36,6 +36,19 @@ object ProjectRunner {
     private const val CACHE_TTL_MS = 4_000L
     private val cache = HashMap<String, Pair<Long, DetectedProjectType>>()
 
+    /**
+     * Project paths that have had a successful Gradle sync **this app session**. Like Android Studio,
+     * Android projects must be synced once per session before they can be built/run. Cleared when the
+     * process dies (in-memory only).
+     */
+    private val syncedProjects = java.util.Collections.synchronizedSet(HashSet<String>())
+
+    fun isSynced(projectRootPath: String): Boolean = syncedProjects.contains(projectRootPath)
+
+    fun markSynced(projectRootPath: String) {
+        syncedProjects.add(projectRootPath)
+    }
+
     /** Project types the run button supports. Only genuinely unidentifiable projects are hidden. */
     fun isRunnable(type: DetectedProjectType): Boolean = type != DetectedProjectType.UNKNOWN
 
@@ -91,6 +104,15 @@ object ProjectRunner {
         val label = "Run · ${rootFile.name}"
         val scriptPath = localBinDir().child("project_runner").absolutePath
 
+        // Android Studio behaviour: an Android project must be Gradle-synced once this session
+        // before it can be built/run. If not, surface a clear, detailed warning and stop.
+        if (type == DetectedProjectType.ANDROID && !isSynced(rootPath)) {
+            if (!RunOutputState.begin(label = label)) return
+            RunOutputState.onOutput(syncRequiredMessage(rootFile.name))
+            RunOutputState.onFinished(1)
+            return
+        }
+
         if (isTerminalInstalled()) {
             // Run headlessly in the background: no terminal screen is shown. Output and progress are
             // surfaced through the editor's floating build view + a notification (RunService).
@@ -104,6 +126,8 @@ object ProjectRunner {
                 // For Android, hand RunService the project's real path so it can locate and install
                 // the built APK once the build succeeds (the Android Studio "Run" experience).
                 androidApkProjectDir = if (type == DetectedProjectType.ANDROID) rootPath else null,
+                // A successful gradle build also counts as synced for the session.
+                syncProjectDir = if (type == DetectedProjectType.ANDROID) rootPath else null,
             )
         } else {
             // Sandbox isn't set up yet — fall back to the terminal so the rootfs can be downloaded
@@ -131,12 +155,20 @@ object ProjectRunner {
     suspend fun sync(activity: Activity, projectRoot: FileObject?, file: FileObject) {
         val rootPath = resolveProjectRootPath(projectRoot, file) ?: return
         if (!File(rootPath).isDirectory) return
-        if (!isTerminalInstalled()) return
+        val label = "Sync · ${File(rootPath).name}"
+
+        if (!isTerminalInstalled()) {
+            if (!RunOutputState.begin(label = label)) return
+            RunOutputState.onOutput(
+                "⚠  The Linux sandbox isn't set up yet.\n\nOpen the terminal once (or run Auto Setup) to install it, then try Sync again."
+            )
+            RunOutputState.onFinished(1)
+            return
+        }
 
         setupAssetFile("project_runner")
         setupTerminalFiles()
         val sandboxRoot = toSandboxPath(rootPath)
-        val label = "Sync · ${File(rootPath).name}"
         val scriptPath = localBinDir().child("project_runner").absolutePath
 
         if (!RunOutputState.begin(label = label)) return
@@ -147,8 +179,25 @@ object ProjectRunner {
             // "SYNC" pseudo-type triggers the gradle dependency sync path in project_runner.sh.
             args = arrayListOf("/bin/bash", "-l", scriptPath, "SYNC", sandboxRoot, ""),
             androidApkProjectDir = null,
+            // On success, mark this project synced for the session so Run is unblocked.
+            syncProjectDir = rootPath,
         )
     }
+
+    /** Detailed, friendly message shown when an Android Run is attempted before a session sync. */
+    private fun syncRequiredMessage(name: String): String =
+        buildString {
+            appendLine("⚠  Gradle sync required for \"$name\"")
+            appendLine()
+            appendLine("Android projects must be Gradle-synced once per session before you can Run,")
+            appendLine("just like Android Studio.")
+            appendLine()
+            appendLine("→ Tap the Sync button (next to Run), wait for it to finish successfully,")
+            appendLine("  then press Run again.")
+            appendLine()
+            appendLine("If Sync fails, make sure the Android SDK (and NDK) are installed from the")
+            appendLine("Dependencies dialog (the download icon in the toolbar).")
+        }
 
     /**
      * Map an Android path to the path the terminal sandbox can actually `cd` into. Shared storage is

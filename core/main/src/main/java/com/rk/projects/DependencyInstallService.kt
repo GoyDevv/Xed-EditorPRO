@@ -15,13 +15,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import com.rk.exec.ShellUtils
+import com.rk.exec.ubuntuProcess
 import com.rk.resources.drawables
+import kotlin.concurrent.thread
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class DepInstallStatus {
     PENDING,
@@ -43,10 +45,20 @@ object DependencyInstaller {
     var currentName by mutableStateOf("")
         internal set
 
+    /** Latest single line of output from the running install (real-time, for the dialog). */
+    var latestLine by mutableStateOf("")
+        internal set
+
+    /** Overall progress 0f..1f across the queued installs (by count). */
+    var progress by mutableStateOf(0f)
+        internal set
+
     fun prime(names: List<String>) {
         status.clear()
         names.forEach { status[it] = DepInstallStatus.PENDING }
         currentName = ""
+        latestLine = ""
+        progress = 0f
     }
 }
 
@@ -58,6 +70,8 @@ object DependencyInstaller {
 class DependencyInstallService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val notificationManager by lazy { getSystemService(NotificationManager::class.java) }
+
+    @Volatile private var lastNotifyAt = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -84,25 +98,54 @@ class DependencyInstallService : Service() {
                 val name = names[i]
                 val command = commands.getOrElse(i) { "" }
                 DependencyInstaller.currentName = name
+                DependencyInstaller.latestLine = ""
                 DependencyInstaller.status[name] = DepInstallStatus.INSTALLING
+                DependencyInstaller.progress = i.toFloat() / total
                 updateNotification("Installing $name", i, total)
 
-                val result =
-                    runCatching {
-                            ShellUtils.runUbuntu(command = arrayOf("bash", "-lc", command), timeoutSeconds = 3600L)
-                        }
-                        .getOrNull()
+                val exit = runCatching { runStreaming(command, name, i, total) }.getOrDefault(-1)
 
-                DependencyInstaller.status[name] =
-                    if (result != null && result.exitCode == 0) DepInstallStatus.DONE else DepInstallStatus.FAILED
+                DependencyInstaller.status[name] = if (exit == 0) DepInstallStatus.DONE else DepInstallStatus.FAILED
+                DependencyInstaller.progress = (i + 1).toFloat() / total
             }
             DependencyInstaller.currentName = ""
+            DependencyInstaller.latestLine = ""
             DependencyInstaller.running = false
+            DependencyInstaller.progress = 1f
             updateNotification("Finished", total, total)
             stopSelfCompat()
         }
         return START_NOT_STICKY
     }
+
+    /** Runs a sandbox command, streaming each output line into [DependencyInstaller.latestLine]. */
+    private suspend fun runStreaming(command: String, name: String, index: Int, total: Int): Int =
+        withContext(Dispatchers.IO) {
+            val process = ubuntuProcess(command = listOf("bash", "-lc", command))
+            val lock = Any()
+            fun pump(stream: java.io.InputStream) =
+                thread {
+                    runCatching {
+                        stream.bufferedReader().forEachLine { line ->
+                            val trimmed = line.trim()
+                            if (trimmed.isNotEmpty()) {
+                                synchronized(lock) { DependencyInstaller.latestLine = trimmed }
+                                val now = System.currentTimeMillis()
+                                if (now - lastNotifyAt > 600) {
+                                    lastNotifyAt = now
+                                    updateNotification("$name · $trimmed", index, total)
+                                }
+                            }
+                        }
+                    }
+                }
+            val t1 = pump(process.inputStream)
+            val t2 = pump(process.errorStream)
+            val exit = process.waitFor()
+            t1.join()
+            t2.join()
+            exit
+        }
 
     override fun onDestroy() {
         DependencyInstaller.running = false

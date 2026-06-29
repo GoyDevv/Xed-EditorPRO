@@ -1,0 +1,59 @@
+Xed-Editor PRO — Changelog
+Version 4.0.6 (versionCode 105)
+
+The real Android build fix + dependency/version flexibility + UX.
+
+================================================================================
+1. FIX: Android template now builds on first try (illegal Kotlin escape)
+================================================================================
+The actual Gradle failure ("Illegal escape: '\.'" in settings.gradle.kts) was caused by the
+template emitting `includeGroupByRegex("com\.android.*")` — `\.` is an illegal escape in Kotlin
+DSL. Fixed to `com\\.android.*` / `com\\.google.*` (valid escaped dot), matching Android Studio.
+- core/main/.../projects/ProjectScaffolder.kt. Scanned the rest of the template; no other illegal
+  Kotlin escapes (the gradle-wrapper.properties `https\://` is correct for a .properties file).
+
+================================================================================
+2. NDK / SDK versions are no longer hard-locked (always resolve latest)
+================================================================================
+- core/main/.../projects/DependenciesDialog.kt —
+  * Android SDK install now resolves and installs the **latest** platform + build-tools live from
+    sdkmanager (in addition to android-34/build-tools 34 for the template), so it won't go stale.
+  * NDK dropdown now includes a **"Latest"** option (default) that resolves the newest NDK at
+    install time, plus pinned versions if you want a specific one.
+  * CMake install resolves the latest available version too.
+
+================================================================================
+3. Build output: scroll lock (auto-scroll) toggle
+================================================================================
+- core/main/.../runner/RunOutputState.kt + RunOutputView.kt — the expanded output auto-scrolls to
+  the newest line as it streams; a toggle button in the output footer turns auto-scroll on/off
+  (highlighted when on). Output stays horizontally scrollable (one line per line).
+
+================================================================================
+4. Open-directory warning
+================================================================================
+- core/main/.../drawer/OpenDirectoryWarningDialog.kt (new) — before the system folder picker, a
+  caution explains that Android 11+ manually-opened directories hit terminal permission errors and
+  that such issues aren't supported. The OK button is **locked for 30 s with a live countdown**;
+  there's a Cancel button and a **"Never show this again"** toggle (Settings.open_dir_warning_dismissed).
+- Wired through AddProjectSheet (onOpenDirectory) → Drawer.
+
+================================================================================
+5. Auto Setup: full-screen UI + full toolchain, for everyone
+================================================================================
+- core/main/.../activities/main/AutoSetupDialog.kt — the consent is now a **full-screen** screen
+  (fullscreen Dialog + Surface) instead of a small dialog: big title, message, live storage/data/
+  time estimate, and Agree / Not now actions.
+- core/main/.../terminal/AutoSetupOverlay.kt — the progress screen is now opaque/full-screen, so
+  the terminal runs silently behind it while you watch live progress.
+- core/main/.../assets/terminal/auto_setup.sh — now installs the full toolchain: apt update/upgrade,
+  curl/git/wget/tar/unzip/zip/nano, build-essential + pkg-config, python3 + pip + venv,
+  Node.js + npm, and OpenJDK 17 — with verification of each. Errors still route to a prefilled
+  GitHub issue.
+
+================================================================================
+6. Version
+================================================================================
+- app/build.gradle.kts — versionName 4.0.5 -> 4.0.6, versionCode 104 -> 105.
+
+Local build wasn't possible in the dev environment; verification is via GitHub Actions CI.

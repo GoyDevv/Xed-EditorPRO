@@ -767,4 +767,12 @@
     <string name="package_name_preview">Application ID</string>
     <string name="package_name_empty_warning">Package and author are empty — the application ID above is auto-generated from the project name. Set them for a proper identifier (e.g. com.yourname.app).</string>
     <string name="gradle_sync">Gradle sync</string>
+    <string name="ndk_version">NDK version</string>
+    <string name="autoscroll">Auto-scroll</string>
+    <string name="autoscroll_on">Auto-scroll: On</string>
+    <string name="autoscroll_off">Auto-scroll: Off</string>
+    <string name="open_dir_warning_title">Before you open a directory</string>
+    <string name="open_dir_warning_msg">On Android 11+ apps cannot freely access folders you pick here. You will likely hit many permission errors when building/running from such directories in the terminal.\n\nFor reliable builds, create or clone your project into the terminal sandbox home instead.\n\nWe do NOT accept bug reports about permission errors from manually-opened directories. Please read this carefully before continuing.</string>
+    <string name="open_dir_warning_ok_timer">OK (%1$d)</string>
+    <string name="never_show_again">Never show this again</string>
 </resources>

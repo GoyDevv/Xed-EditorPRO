@@ -58,6 +58,7 @@ class RunService : Service() {
         val workingDir = intent?.getStringExtra(EXTRA_WORKDIR)
         val args = intent?.getStringArrayListExtra(EXTRA_ARGS) ?: arrayListOf()
         val apkProjectDir = intent?.getStringExtra(EXTRA_APK_DIR)
+        val syncProjectDir = intent?.getStringExtra(EXTRA_SYNC_DIR)
 
         startForegroundCompat(buildNotification(label, "Starting…", ongoing = true))
         RunOutputState.setStopper { stopProcess() }
@@ -87,9 +88,11 @@ class RunService : Service() {
                 t2.join()
                 RunOutputState.onOutput(sb.toString())
                 RunOutputState.onFinished(exit)
-                // Android: install the freshly built APK on a successful build.
-                if (exit == 0 && apkProjectDir != null) {
-                    ApkInstaller.install(applicationContext, apkProjectDir)
+                if (exit == 0) {
+                    // A successful gradle sync/build marks the project synced for this session.
+                    if (syncProjectDir != null) ProjectRunner.markSynced(syncProjectDir)
+                    // Android: install the freshly built APK.
+                    if (apkProjectDir != null) ApkInstaller.install(applicationContext, apkProjectDir)
                 }
                 showResultNotification(label, exit)
             } catch (e: Exception) {
@@ -203,6 +206,7 @@ class RunService : Service() {
         private const val EXTRA_WORKDIR = "workingDir"
         private const val EXTRA_ARGS = "args"
         private const val EXTRA_APK_DIR = "apkProjectDir"
+        private const val EXTRA_SYNC_DIR = "syncProjectDir"
 
         /** Start a background build. [args] is the full sandbox command list for [ubuntuProcess]. */
         fun start(
@@ -211,6 +215,7 @@ class RunService : Service() {
             workingDir: String?,
             args: ArrayList<String>,
             androidApkProjectDir: String? = null,
+            syncProjectDir: String? = null,
         ) {
             val intent =
                 Intent(context, RunService::class.java).apply {
@@ -218,6 +223,7 @@ class RunService : Service() {
                     putExtra(EXTRA_WORKDIR, workingDir)
                     putStringArrayListExtra(EXTRA_ARGS, args)
                     putExtra(EXTRA_APK_DIR, androidApkProjectDir)
+                    putExtra(EXTRA_SYNC_DIR, syncProjectDir)
                 }
             ContextCompat.startForegroundService(context, intent)
         }

@@ -563,7 +563,6 @@ object ProjectScaffolder {
         val pkgPath = pkg.replace('.', '/')
         val jdk = config.jdkVersion.ifBlank { "17" }
         val appNoSpace = config.name.replace(Regex("[^A-Za-z0-9]"), "").ifBlank { "App" }
-        val themeName = appNoSpace.replaceFirstChar { it.uppercase() } + "Theme"
         val styleName = "Theme.$appNoSpace"
 
         // settings.gradle.kts
@@ -574,8 +573,8 @@ object ProjectScaffolder {
                 repositories {
                     google {
                         content {
-                            includeGroupByRegex("com\.android.*")
-                            includeGroupByRegex("com\.google.*")
+                            includeGroupByRegex("com\\.android.*")
+                            includeGroupByRegex("com\\.google.*")
                             includeGroupByRegex("androidx.*")
                         }
                     }
@@ -765,7 +764,7 @@ object ProjectScaffolder {
                 .trimIndent() + "\n",
         )
 
-        // MainActivity.kt
+        // MainActivity.kt — the only Kotlin file in this empty project (self-contained, no theme pkg).
         root.write(
             "app/src/main/java/$pkgPath/MainActivity.kt",
             """
@@ -777,19 +776,19 @@ object ProjectScaffolder {
             import androidx.activity.enableEdgeToEdge
             import androidx.compose.foundation.layout.fillMaxSize
             import androidx.compose.foundation.layout.padding
+            import androidx.compose.material3.MaterialTheme
             import androidx.compose.material3.Scaffold
             import androidx.compose.material3.Text
             import androidx.compose.runtime.Composable
             import androidx.compose.ui.Modifier
             import androidx.compose.ui.tooling.preview.Preview
-            import $pkg.ui.theme.$themeName
 
             class MainActivity : ComponentActivity() {
                 override fun onCreate(savedInstanceState: Bundle?) {
                     super.onCreate(savedInstanceState)
                     enableEdgeToEdge()
                     setContent {
-                        $themeName {
+                        MaterialTheme {
                             Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                                 Greeting(
                                     name = "Android",
@@ -809,99 +808,8 @@ object ProjectScaffolder {
             @Preview(showBackground = true)
             @Composable
             fun GreetingPreview() {
-                $themeName { Greeting("Android") }
+                MaterialTheme { Greeting("Android") }
             }
-            """
-                .trimIndent() + "\n",
-        )
-
-        // Theme package
-        root.write(
-            "app/src/main/java/$pkgPath/ui/theme/Color.kt",
-            """
-            package $pkg.ui.theme
-
-            import androidx.compose.ui.graphics.Color
-
-            val Purple80 = Color(0xFFD0BCFF)
-            val PurpleGrey80 = Color(0xFFCCC2DC)
-            val Pink80 = Color(0xFFEFB8C8)
-
-            val Purple40 = Color(0xFF6650a4)
-            val PurpleGrey40 = Color(0xFF625b71)
-            val Pink40 = Color(0xFF7D5260)
-            """
-                .trimIndent() + "\n",
-        )
-
-        root.write(
-            "app/src/main/java/$pkgPath/ui/theme/Theme.kt",
-            """
-            package $pkg.ui.theme
-
-            import android.os.Build
-            import androidx.compose.foundation.isSystemInDarkTheme
-            import androidx.compose.material3.MaterialTheme
-            import androidx.compose.material3.darkColorScheme
-            import androidx.compose.material3.dynamicDarkColorScheme
-            import androidx.compose.material3.dynamicLightColorScheme
-            import androidx.compose.material3.lightColorScheme
-            import androidx.compose.runtime.Composable
-            import androidx.compose.ui.platform.LocalContext
-
-            private val DarkColorScheme = darkColorScheme(
-                primary = Purple80,
-                secondary = PurpleGrey80,
-                tertiary = Pink80,
-            )
-
-            private val LightColorScheme = lightColorScheme(
-                primary = Purple40,
-                secondary = PurpleGrey40,
-                tertiary = Pink40,
-            )
-
-            @Composable
-            fun $themeName(
-                darkTheme: Boolean = isSystemInDarkTheme(),
-                dynamicColor: Boolean = true,
-                content: @Composable () -> Unit,
-            ) {
-                val colorScheme = when {
-                    dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-                        val context = LocalContext.current
-                        if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-                    }
-                    darkTheme -> DarkColorScheme
-                    else -> LightColorScheme
-                }
-
-                MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
-            }
-            """
-                .trimIndent() + "\n",
-        )
-
-        root.write(
-            "app/src/main/java/$pkgPath/ui/theme/Type.kt",
-            """
-            package $pkg.ui.theme
-
-            import androidx.compose.material3.Typography
-            import androidx.compose.ui.text.TextStyle
-            import androidx.compose.ui.text.font.FontFamily
-            import androidx.compose.ui.text.font.FontWeight
-            import androidx.compose.ui.unit.sp
-
-            val Typography = Typography(
-                bodyLarge = TextStyle(
-                    fontFamily = FontFamily.Default,
-                    fontWeight = FontWeight.Normal,
-                    fontSize = 16.sp,
-                    lineHeight = 24.sp,
-                    letterSpacing = 0.5.sp,
-                ),
-            )
             """
                 .trimIndent() + "\n",
         )
@@ -1032,47 +940,6 @@ object ProjectScaffolder {
                 .trimIndent() + "\n"
         root.write("app/src/main/res/mipmap/ic_launcher.xml", legacyIcon)
         root.write("app/src/main/res/mipmap/ic_launcher_round.xml", legacyIcon)
-
-        // Tests
-        root.write(
-            "app/src/test/java/$pkgPath/ExampleUnitTest.kt",
-            """
-            package $pkg
-
-            import org.junit.Assert.assertEquals
-            import org.junit.Test
-
-            class ExampleUnitTest {
-                @Test
-                fun addition_isCorrect() {
-                    assertEquals(4, 2 + 2)
-                }
-            }
-            """
-                .trimIndent() + "\n",
-        )
-        root.write(
-            "app/src/androidTest/java/$pkgPath/ExampleInstrumentedTest.kt",
-            """
-            package $pkg
-
-            import androidx.test.ext.junit.runners.AndroidJUnit4
-            import androidx.test.platform.app.InstrumentationRegistry
-            import org.junit.Assert.assertEquals
-            import org.junit.Test
-            import org.junit.runner.RunWith
-
-            @RunWith(AndroidJUnit4::class)
-            class ExampleInstrumentedTest {
-                @Test
-                fun useAppContext() {
-                    val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-                    assertEquals("$pkg", appContext.packageName)
-                }
-            }
-            """
-                .trimIndent() + "\n",
-        )
 
         // Root .gitignore (Android Studio default)
         root.write(

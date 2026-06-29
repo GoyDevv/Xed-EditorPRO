@@ -67,6 +67,8 @@ object Settings {
     var github by CachedPreference("github", true)
     var has_shown_private_data_dir_warning by CachedPreference("has_shown_private_data_dir_warning", false)
     var has_shown_terminal_dir_warning by CachedPreference("has_shown_terminal_dir_warning", false)
+    // When true, skip the Android 11+ permission caution shown before opening a directory.
+    var open_dir_warning_dismissed by CachedPreference("open_dir_warning_dismissed", false)
     var anr_watchdog by CachedPreference("anr", BuildConfig.DEBUG)
     var strict_mode by CachedPreference("strict_mode", BuildConfig.DEBUG)
     var expose_home_dir by CachedPreference("expose_home_dir", false)

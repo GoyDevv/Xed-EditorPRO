@@ -18,7 +18,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -34,6 +41,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.rk.exec.ShellUtils
@@ -57,8 +66,10 @@ private class DepRow(val dep: Dep) {
 }
 
 /**
- * Best-effort Android SDK install (command-line tools + platform-tools + android-34 + build-tools).
- * Heavy and arch-dependent on a phone — offered as an option only, per the user's choice to install.
+ * Best-effort Android SDK install. Installs cmdline-tools, platform-tools, the API 34 platform +
+ * build-tools 34 (the template's known-good pin so new projects build first try), AND the latest
+ * available platform + build-tools resolved live from sdkmanager — so the SDK is never hard-locked
+ * to an old version as Google ships new ones.
  */
 private val ANDROID_SDK_INSTALL =
     "set -e; " +
@@ -68,8 +79,49 @@ private val ANDROID_SDK_INSTALL =
         "cd \"${'$'}ANDROID_HOME/cmdline-tools\"; " +
         "wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O clt.zip; " +
         "unzip -q -o clt.zip; rm -f clt.zip; rm -rf latest; mv cmdline-tools latest; " +
-        "yes | latest/bin/sdkmanager --sdk_root=\"${'$'}ANDROID_HOME\" --licenses || true; " +
-        "latest/bin/sdkmanager --sdk_root=\"${'$'}ANDROID_HOME\" \"platform-tools\" \"platforms;android-34\" \"build-tools;34.0.0\""
+        "SDKM=\"${'$'}ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager\"; " +
+        "yes | \"${'$'}SDKM\" --sdk_root=\"${'$'}ANDROID_HOME\" --licenses >/dev/null 2>&1 || true; " +
+        "PLAT=${'$'}(\"${'$'}SDKM\" --sdk_root=\"${'$'}ANDROID_HOME\" --list 2>/dev/null | grep -oE 'platforms;android-[0-9]+' | sort -V | tail -1); " +
+        "[ -z \"${'$'}PLAT\" ] && PLAT='platforms;android-35'; " +
+        "BT=${'$'}(\"${'$'}SDKM\" --sdk_root=\"${'$'}ANDROID_HOME\" --list 2>/dev/null | grep -oE 'build-tools;[0-9.]+' | sort -V | tail -1); " +
+        "[ -z \"${'$'}BT\" ] && BT='build-tools;35.0.0'; " +
+        "echo \"Installing platform-tools, android-34, build-tools 34, ${'$'}PLAT, ${'$'}BT\"; " +
+        "\"${'$'}SDKM\" --sdk_root=\"${'$'}ANDROID_HOME\" \"platform-tools\" \"platforms;android-34\" \"build-tools;34.0.0\" \"${'$'}PLAT\" \"${'$'}BT\""
+
+/** Special dropdown value meaning "resolve and install the newest NDK available". */
+internal const val NDK_LATEST = "Latest"
+
+/** Available NDK choices offered in the dropdown. "Latest" resolves dynamically (never hard-locked). */
+internal val NDK_VERSIONS =
+    listOf(NDK_LATEST, "27.0.12077973", "26.3.11579264", "26.1.10909125", "25.2.9519653", "23.2.8568313")
+
+/** sdkmanager-based install for an NDK version, or the newest available when [version] is [NDK_LATEST]. */
+private fun ndkInstallCmd(version: String): String {
+    val resolve =
+        if (version == NDK_LATEST) {
+            "PKG=${'$'}(\"${'$'}SDKM\" --sdk_root=\"${'$'}ANDROID_HOME\" --list 2>/dev/null | grep -oE 'ndk;[0-9.]+' | sort -V | tail -1); " +
+                "[ -z \"${'$'}PKG\" ] && PKG='ndk;26.3.11579264'; "
+        } else {
+            "PKG='ndk;$version'; "
+        }
+    return "set -e; export ANDROID_HOME=\"${'$'}HOME/android-sdk\"; " +
+        "SDKM=\"${'$'}ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager\"; " +
+        "[ -x \"${'$'}SDKM\" ] || { echo 'Android SDK command-line tools not found — install \"Android SDK\" first.'; exit 1; }; " +
+        "yes | \"${'$'}SDKM\" --sdk_root=\"${'$'}ANDROID_HOME\" --licenses >/dev/null 2>&1 || true; " +
+        resolve +
+        "echo \"Installing ${'$'}PKG\"; " +
+        "\"${'$'}SDKM\" --sdk_root=\"${'$'}ANDROID_HOME\" \"${'$'}PKG\""
+}
+
+/** Installs the newest CMake available (resolved live), falling back to 3.22.1. */
+private val CMAKE_INSTALL =
+    "set -e; export ANDROID_HOME=\"${'$'}HOME/android-sdk\"; " +
+        "SDKM=\"${'$'}ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager\"; " +
+        "[ -x \"${'$'}SDKM\" ] || { echo 'Android SDK command-line tools not found — install \"Android SDK\" first.'; exit 1; }; " +
+        "CM=${'$'}(\"${'$'}SDKM\" --sdk_root=\"${'$'}ANDROID_HOME\" --list 2>/dev/null | grep -oE 'cmake;[0-9.]+' | sort -V | tail -1); " +
+        "[ -z \"${'$'}CM\" ] && CM='cmake;3.22.1'; " +
+        "echo \"Installing ${'$'}CM\"; " +
+        "\"${'$'}SDKM\" --sdk_root=\"${'$'}ANDROID_HOME\" \"${'$'}CM\""
 
 private fun catalogFor(type: DetectedProjectType): List<Dep> {
     fun apt(pkgs: String) = "apt-get install -y $pkgs"
@@ -82,14 +134,27 @@ private fun catalogFor(type: DetectedProjectType): List<Dep> {
         DetectedProjectType.GRADLE -> listOf(jdk21, jdk17, git)
         DetectedProjectType.ANDROID ->
             listOf(
-                jdk21,
                 jdk17,
+                jdk21,
                 git,
                 Dep(
-                    "Android SDK (command-line tools)",
-                    "platform-tools · android-34 · build-tools 34 (large)",
+                    "Android SDK",
+                    "cmdline-tools · platform-tools · android-35/34 · build-tools 35/34 (large)",
                     "test -d \"${'$'}HOME/android-sdk/platform-tools\"",
                     ANDROID_SDK_INSTALL,
+                ),
+                // installCmd is overridden with the version picked in the dropdown (see doInstall).
+                Dep(
+                    "Android NDK",
+                    "Native Development Kit (choose version below)",
+                    "test -d \"${'$'}HOME/android-sdk/ndk\"",
+                    ndkInstallCmd(NDK_VERSIONS.first()),
+                ),
+                Dep(
+                    "CMake",
+                    "cmake;3.22.1 (native C/C++ builds)",
+                    "test -d \"${'$'}HOME/android-sdk/cmake\"",
+                    CMAKE_INSTALL,
                 ),
             )
         DetectedProjectType.NODE ->
@@ -125,6 +190,8 @@ fun DependenciesDialog(projectRoot: File, onDismiss: () -> Unit) {
     var detecting by remember { mutableStateOf(true) }
     var typeLabel by remember { mutableStateOf("") }
     var terminalReady by remember { mutableStateOf(true) }
+    var projectType by remember { mutableStateOf(DetectedProjectType.UNKNOWN) }
+    var ndkVersion by remember { mutableStateOf(NDK_VERSIONS.first()) }
 
     val rows = remember { mutableStateListOf<DepRow>() }
     val selected = remember { mutableStateMapOf<String, Boolean>() }
@@ -136,6 +203,7 @@ fun DependenciesDialog(projectRoot: File, onDismiss: () -> Unit) {
         if (!DependencyInstaller.running) DependencyInstaller.status.clear()
         val type = withContext(Dispatchers.IO) { ProjectTypeDetector.detect(projectRoot) }
         typeLabel = type.label
+        projectType = type
         terminalReady = isTerminalInstalled()
         rows.clear()
         rows.addAll(catalogFor(type).map { DepRow(it) })
@@ -161,7 +229,13 @@ fun DependenciesDialog(projectRoot: File, onDismiss: () -> Unit) {
             }
         if (sel.isNotEmpty()) {
             val names = ArrayList(sel.map { it.dep.name })
-            val commands = ArrayList(sel.map { it.dep.installCmd })
+            val commands =
+                ArrayList(
+                    sel.map { row ->
+                        // The NDK row installs the version chosen in the dropdown.
+                        if (row.dep.name == "Android NDK") ndkInstallCmd(ndkVersion) else row.dep.installCmd
+                    }
+                )
             DependencyInstallService.start(context, names, commands)
         }
     }
@@ -213,11 +287,32 @@ fun DependenciesDialog(projectRoot: File, onDismiss: () -> Unit) {
                     else -> rows.forEach { row -> DepRowItem(row, selected, busy) }
                 }
 
-                if (busy && DependencyInstaller.currentName.isNotBlank()) {
+                // NDK version picker (Android only).
+                if (!detecting && projectType == DetectedProjectType.ANDROID && terminalReady) {
+                    NdkVersionPicker(selected = ndkVersion, enabled = !busy, onSelect = { ndkVersion = it })
+                }
+
+                if (busy) {
+                    Spacer(Modifier.size(4.dp))
+                    LinearProgressIndicator(
+                        progress = { DependencyInstaller.progress },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                     Text(
-                        text = stringResource(strings.installing) + "  " + DependencyInstaller.currentName,
+                        text =
+                            stringResource(strings.installing) +
+                                if (DependencyInstaller.currentName.isNotBlank()) "  ·  ${DependencyInstaller.currentName}"
+                                else "",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    // Real-time, single-line output of the running install.
+                    Text(
+                        text = DependencyInstaller.latestLine.ifBlank { "…" },
                         style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
@@ -234,9 +329,41 @@ fun DependenciesDialog(projectRoot: File, onDismiss: () -> Unit) {
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DepRowItem(row: DepRow, selected: MutableMap<String, Boolean>, busy: Boolean) {
-    val svc = DependencyInstaller.status[row.dep.name]
+private fun NdkVersionPicker(selected: String, enabled: Boolean, onSelect: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { if (enabled) expanded = !expanded },
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        OutlinedTextField(
+            value = selected,
+            onValueChange = {},
+            readOnly = true,
+            enabled = enabled,
+            singleLine = true,
+            label = { Text(stringResource(strings.ndk_version)) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            NDK_VERSIONS.forEach { version ->
+                DropdownMenuItem(
+                    text = { Text(version) },
+                    onClick = {
+                        onSelect(version)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DepRowItem(row: DepRow, selected: MutableMap<String, Boolean>, busy: Boolean) {    val svc = DependencyInstaller.status[row.dep.name]
     val selectable = !busy && row.state == DepState.AVAILABLE && (svc == null || svc == DepInstallStatus.FAILED)
 
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

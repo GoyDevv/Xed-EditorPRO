@@ -43,6 +43,9 @@ object RunOutputState {
     /** Whether the floating view is expanded. Public so the editor can blur its background behind it. */
     var expanded by mutableStateOf(false)
 
+    /** Auto-scroll the expanded output to the newest line as it streams in. Toggled by a button. */
+    var autoScroll by mutableStateOf(true)
+
     /** Set by the running service so [stop] can kill the underlying process. */
     private var stopper: (() -> Unit)? = null
 

@@ -67,6 +67,7 @@ import com.rk.icons.XedIcon
 import com.rk.projects.CreateProjectDialog
 import com.rk.projects.ProjectDependencies
 import com.rk.projects.ProjectScaffolder
+import com.rk.settings.Settings
 import com.rk.exec.isTerminalInstalled
 import com.rk.exec.launchTerminal
 import com.rk.resources.drawables
@@ -120,6 +121,7 @@ fun DrawerContent(fullscreen: Boolean) {
                 val scope = rememberCoroutineScope()
                 var showAddDialog by rememberSaveable { mutableStateOf(false) }
                 var closeProjectDialog by remember { mutableStateOf(false) }
+                var showOpenDirWarning by remember { mutableStateOf(false) }
 
                 // Git clone dialog
                 var showGitCloneDialog by remember { mutableStateOf(false) }
@@ -373,6 +375,13 @@ fun DrawerContent(fullscreen: Boolean) {
                     AddProjectSheet(
                         onDismiss = { showAddDialog = false },
                         openFolder = openFolder,
+                        onOpenDirectory = {
+                            if (Settings.open_dir_warning_dismissed) {
+                                openFolder.launch(null)
+                            } else {
+                                showOpenDirWarning = true
+                            }
+                        },
                         onAddProject = { fileObject -> scope.launch { viewModel.addFileTreeTab(fileObject, true) } },
                         showPrivateFileWarning = { callback ->
                             dialogRes(
@@ -389,6 +398,16 @@ fun DrawerContent(fullscreen: Boolean) {
                             showAddDialog = false
                             showCreateProjectDialog = true
                         },
+                    )
+                }
+
+                if (showOpenDirWarning) {
+                    OpenDirectoryWarningDialog(
+                        onConfirm = {
+                            showOpenDirWarning = false
+                            openFolder.launch(null)
+                        },
+                        onCancel = { showOpenDirWarning = false },
                     )
                 }
 

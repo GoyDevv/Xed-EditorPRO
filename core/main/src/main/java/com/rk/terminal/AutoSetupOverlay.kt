@@ -50,7 +50,7 @@ import kotlinx.coroutines.delay
 fun AutoSetupOverlay(activity: Activity) {
     Box(
         modifier =
-            Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.75f)).padding(24.dp),
+            Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp),
         contentAlignment = Alignment.Center,
     ) {
         Card(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {

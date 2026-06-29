@@ -12,6 +12,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -96,8 +97,9 @@ fun RunOutputView(modifier: Modifier = Modifier) {    if (!RunOutputState.isActi
         )
 
     val scrollState = rememberScrollState()
-    LaunchedEffect(RunOutputState.output, expanded) {
-        if (expanded) scrollState.animateScrollTo(scrollState.maxValue)
+    val hScrollState = rememberScrollState()
+    LaunchedEffect(RunOutputState.output, expanded, RunOutputState.autoScroll) {
+        if (expanded && RunOutputState.autoScroll) scrollState.animateScrollTo(scrollState.maxValue)
     }
 
     val floating = !imeVisible
@@ -164,8 +166,10 @@ fun RunOutputView(modifier: Modifier = Modifier) {    if (!RunOutputState.isActi
                             modifier =
                                 Modifier.fillMaxSize()
                                     .verticalScroll(scrollState)
+                                    .horizontalScroll(hScrollState)
                                     .padding(horizontal = 12.dp, vertical = 8.dp),
                             style = OutputTextStyle,
+                            softWrap = false,
                         )
                     }
                     HorizontalDivider()
@@ -174,6 +178,24 @@ fun RunOutputView(modifier: Modifier = Modifier) {    if (!RunOutputState.isActi
                         horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        // Scroll-lock toggle: when on, the view auto-scrolls to the newest output.
+                        TextButton(onClick = { RunOutputState.autoScroll = !RunOutputState.autoScroll }) {
+                            Icon(
+                                painter = painterResource(drawables.arrow_downward),
+                                contentDescription = stringResource(strings.autoscroll),
+                                tint =
+                                    if (RunOutputState.autoScroll) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                stringResource(
+                                    if (RunOutputState.autoScroll) strings.autoscroll_on else strings.autoscroll_off
+                                )
+                            )
+                        }
+                        Spacer(modifier = Modifier.weight(1f))
                         TextButton(
                             onClick = {
                                 ClipboardUtils.copyText("Build output", RunOutputState.output)
