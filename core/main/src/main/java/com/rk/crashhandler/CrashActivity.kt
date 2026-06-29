@@ -235,7 +235,7 @@ class CrashActivity : ComponentActivity() {
                 "https://github.com/$repo"
             }
         } else {
-            "https://github.com/Xed-Editor/Xed-Editor"
+            "https://github.com/GoyDevv/Xed-EditorPRO"
         }
         val url =
             "$baseUrl/issues/new?title=Crash%20Report&body=" +

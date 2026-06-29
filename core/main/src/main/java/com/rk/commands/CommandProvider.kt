@@ -3,6 +3,7 @@ package com.rk.commands
 import androidx.compose.runtime.mutableStateListOf
 import com.rk.commands.editor.CopyCommand
 import com.rk.commands.editor.CutCommand
+import com.rk.commands.editor.DependenciesCommand
 import com.rk.commands.editor.DuplicateLineCommand
 import com.rk.commands.editor.EmulateKeyCommand
 import com.rk.commands.editor.JumpToLineCommand
@@ -20,8 +21,11 @@ import com.rk.commands.editor.SelectWordCommand
 import com.rk.commands.editor.ShareCommand
 import com.rk.commands.editor.SortLinesAscendingCommand
 import com.rk.commands.editor.SortLinesDescendingCommand
+import com.rk.commands.editor.SyncCommand
 import com.rk.commands.editor.SyntaxHighlightingCommand
+import com.rk.commands.editor.ToggleExtraKeysCommand
 import com.rk.commands.editor.ToggleReadOnlyCommand
+import com.rk.commands.editor.ToggleShowAllFilesCommand
 import com.rk.commands.editor.ToggleWordWrapCommand
 import com.rk.commands.editor.UndoCommand
 import com.rk.commands.editor.UpperCaseCommand
@@ -65,8 +69,12 @@ object CommandProvider {
     lateinit var UndoCommand: UndoCommand
     lateinit var RedoCommand: RedoCommand
     lateinit var RunCommand: RunCommand
+    lateinit var SyncCommand: SyncCommand
     lateinit var MarkdownPreviewCommand: MarkdownPreviewCommand
+    lateinit var DependenciesCommand: DependenciesCommand
     lateinit var ToggleReadOnlyCommand: ToggleReadOnlyCommand
+    lateinit var ToggleShowAllFilesCommand: ToggleShowAllFilesCommand
+    lateinit var ToggleExtraKeysCommand: ToggleExtraKeysCommand
     lateinit var SearchCommand: SearchCommand
     lateinit var ReplaceCommand: ReplaceCommand
     lateinit var RefreshCommand: RefreshCommand
@@ -105,8 +113,12 @@ object CommandProvider {
             registerBuiltin(UndoCommand()) { UndoCommand = it }
             registerBuiltin(RedoCommand()) { RedoCommand = it }
             registerBuiltin(RunCommand()) { RunCommand = it }
+            registerBuiltin(SyncCommand()) { SyncCommand = it }
             registerBuiltin(MarkdownPreviewCommand()) { MarkdownPreviewCommand = it }
+            registerBuiltin(DependenciesCommand()) { DependenciesCommand = it }
             registerBuiltin(ToggleReadOnlyCommand()) { ToggleReadOnlyCommand = it }
+            registerBuiltin(ToggleShowAllFilesCommand()) { ToggleShowAllFilesCommand = it }
+            registerBuiltin(ToggleExtraKeysCommand()) { ToggleExtraKeysCommand = it }
             registerBuiltin(SearchCommand()) { SearchCommand = it }
             registerBuiltin(ReplaceCommand()) { ReplaceCommand = it }
             registerBuiltin(RefreshCommand()) { RefreshCommand = it }

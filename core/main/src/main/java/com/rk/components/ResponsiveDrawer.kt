@@ -24,11 +24,19 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.rk.settings.Settings
 
+/**
+ * When true the modal drawer (file tree / git / etc.) is maximized to the full screen width.
+ * Toggled by the expand button in the drawer's navigation rail. Read by [getDrawerWidth] so every
+ * width-dependent piece of the drawer (the sheet itself and the file-tree rows) stays in sync.
+ */
+var isDrawerExpanded by mutableStateOf(false)
+
 @Composable
 inline fun getDrawerWidth(): Dp {
     val density = LocalDensity.current
     val widthPx = LocalWindowInfo.current.containerSize.width
-    val width = with(density) { (widthPx * 0.83f).toDp() }
+    val fraction = if (isDrawerExpanded) 1f else 0.83f
+    val width = with(density) { (widthPx * fraction).toDp() }
     return width
 }
 

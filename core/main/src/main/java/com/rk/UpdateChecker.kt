@@ -105,7 +105,7 @@ object UpdateChecker {
                         setTitle(strings.update_av.getString())
                         setMessage(updates.joinToString("\n"))
                         setPositiveButton(strings.update.getString()) { _, _ ->
-                            val url = "https://github.com/Xed-Editor/Xed-Editor"
+                            val url = "https://github.com/GoyDevv/Xed-EditorPRO"
                             val intent = Intent(Intent.ACTION_VIEW).apply { data = url.toUri() }
                             context.startActivity(intent)
                         }

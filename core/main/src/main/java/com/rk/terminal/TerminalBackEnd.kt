@@ -17,11 +17,20 @@ import com.termux.view.TerminalViewClient
 class TerminalBackEnd : TerminalViewClient, TerminalSessionClient {
     override fun onTextChanged(changedSession: TerminalSession) {
         terminalView.get()?.onScreenUpdated()
+        if (AutoSetupState.isTracked(changedSession)) {
+            runCatching { changedSession.emulator?.screen?.transcriptTextWithoutJoinedLines }
+                .getOrNull()
+                ?.let { AutoSetupState.onOutput(it) }
+        }
     }
 
     override fun onTitleChanged(changedSession: TerminalSession) {}
 
-    override fun onSessionFinished(finishedSession: TerminalSession) {}
+    override fun onSessionFinished(finishedSession: TerminalSession) {
+        if (AutoSetupState.isTracked(finishedSession)) {
+            AutoSetupState.onFinished()
+        }
+    }
 
     override fun onCopyTextToClipboard(session: TerminalSession, text: String) {
         ClipboardUtils.copyText("Terminal", text)

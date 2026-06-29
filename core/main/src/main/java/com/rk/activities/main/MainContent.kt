@@ -30,6 +30,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,11 +56,13 @@ import com.rk.filetree.FileActionContext
 import com.rk.filetree.FileActionDialogs
 import com.rk.filetree.FileActionProvider
 import com.rk.filetree.FileIcon
+import com.rk.filetree.FileTreeTab
 import com.rk.filetree.FileTreeViewModel
 import com.rk.filetree.MultiFileAction
 import com.rk.filetree.MultiFileActionContext
 import com.rk.icons.XedIcon
 import com.rk.resources.drawables
+import com.rk.runner.RunOutputView
 import com.rk.resources.getString
 import com.rk.resources.strings
 import com.rk.settings.Settings
@@ -86,6 +89,21 @@ fun MainContent(
 
     FileActionDialogs(drawerViewModel, fileTreeViewModel, scope, context)
 
+    // First-launch Auto Setup prompt: offer to set up the sandbox + core tools once. Shown until
+    // the user completes it or explicitly skips it.
+    var showAutoSetup by rememberSaveable {
+        mutableStateOf(!Settings.auto_setup_completed && !Settings.auto_setup_prompt_dismissed)
+    }
+    if (showAutoSetup) {
+        AutoSetupDialog(
+            onLaunch = { showAutoSetup = false },
+            onDismissForever = {
+                Settings.auto_setup_prompt_dismissed = true
+                showAutoSetup = false
+            },
+        )
+    }
+
     if (mainViewModel.isDraggingPalette || mainViewModel.showCommandPalette) {
         val lastUsedCommand = CommandProvider.getForId(Settings.last_used_command)
 
@@ -99,26 +117,42 @@ fun MainContent(
         )
     }
 
-    Column(Modifier.fillMaxSize().padding(innerPadding)) {
-        if (mainViewModel.tabs.isEmpty()) {
+    Box(Modifier.fillMaxSize().padding(innerPadding)) {
+        Column(Modifier.fillMaxSize()) {
+        // Open tabs scoped to the selected project/directory (unless "Show all files" is on).
+        val visibleTabs = visibleTabsFor(mainViewModel, drawerViewModel)
+        val currentProjectPath = (drawerViewModel.currentDrawerTab as? FileTreeTab)?.root?.getAbsolutePath()
+
+        // Keep the active tab within the visible (scoped) set when the project selection changes.
+        LaunchedEffect(Settings.show_all_files, currentProjectPath, visibleTabs.size) {
+            val cur = mainViewModel.currentTab
+            if (cur != null && visibleTabs.isNotEmpty() && cur !in visibleTabs) {
+                val idx = mainViewModel.tabs.indexOf(visibleTabs.first())
+                if (idx >= 0) mainViewModel.tabManager.setCurrentTab(idx)
+            }
+        }
+
+        if (visibleTabs.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 TextButton(onClick = { scope.launch { drawerState.open() } }) {
                     Text(text = stringResource(strings.click_open), style = MaterialTheme.typography.bodyLarge)
                 }
             }
         } else {
-            val pagerState = rememberPagerState(pageCount = { mainViewModel.tabs.size })
+            val pagerState = rememberPagerState(pageCount = { visibleTabsFor(mainViewModel, drawerViewModel).size })
 
-            LaunchedEffect(mainViewModel.currentTabIndex) {
+            val selectedVisibleIndex = visibleTabs.indexOf(mainViewModel.currentTab).let { if (it < 0) 0 else it }
+
+            LaunchedEffect(selectedVisibleIndex, visibleTabs.size) {
                 if (
-                    mainViewModel.tabs.isNotEmpty() &&
-                        mainViewModel.currentTabIndex < mainViewModel.tabs.size &&
-                        pagerState.currentPage != mainViewModel.currentTabIndex
+                    visibleTabs.isNotEmpty() &&
+                        selectedVisibleIndex < visibleTabs.size &&
+                        pagerState.currentPage != selectedVisibleIndex
                 ) {
                     if (Settings.smooth_tabs) {
-                        pagerState.animateScrollToPage(mainViewModel.currentTabIndex)
+                        pagerState.animateScrollToPage(selectedVisibleIndex)
                     } else {
-                        pagerState.scrollToPage(mainViewModel.currentTabIndex)
+                        pagerState.scrollToPage(selectedVisibleIndex)
                     }
                 }
             }
@@ -127,14 +161,13 @@ fun MainContent(
 
             ReorderContainer(state = reorderState) {
                 PrimaryScrollableTabRow(
-                    selectedTabIndex =
-                        if (mainViewModel.currentTabIndex < mainViewModel.tabs.size) mainViewModel.currentTabIndex
-                        else 0,
+                    selectedTabIndex = selectedVisibleIndex,
                     modifier = Modifier.fillMaxWidth(),
                     edgePadding = 0.dp,
                     divider = {},
                 ) {
-                    mainViewModel.tabs.forEachIndexed { index, tabState ->
+                    visibleTabs.forEach { tabState ->
+                        val index = mainViewModel.tabs.indexOf(tabState)
                         key(tabState) {
                             TabItem(
                                 mainViewModel = mainViewModel,
@@ -206,16 +239,34 @@ fun MainContent(
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize().clipToBounds(),
-                beyondViewportPageCount = mainViewModel.tabs.size,
+                beyondViewportPageCount = visibleTabs.size,
                 userScrollEnabled = false,
-                key = { mainViewModel.tabs.getOrNull(it).hashCode() },
+                key = { visibleTabs.getOrNull(it).hashCode() },
             ) { page ->
-                if (page < mainViewModel.tabs.size) {
-                    mainViewModel.tabs[page].Content()
-                }
+                visibleTabs.getOrNull(page)?.Content()
             }
         }
+        }
+
+        // Always-visible floating build/run output — works even with no file open.
+        RunOutputView(modifier = Modifier.align(Alignment.BottomCenter))
     }
+}
+
+/**
+ * The set of open tabs to display. When "Show all files" is on (or no project/directory is selected
+ * in the drawer) every open tab is shown. Otherwise editor tabs are scoped to the currently selected
+ * project: only files whose [EditorTab.projectRoot] matches the selected project are shown, so files
+ * from different directories don't get mixed together. Non-editor tabs (e.g. previews) always show.
+ *
+ * Reads snapshot-backed state ([Settings.show_all_files], the drawer selection and the tab list) so
+ * callers — including the pager's pageCount lambda — recompose/remeasure when any of them change.
+ */
+private fun visibleTabsFor(mainViewModel: MainViewModel, drawerViewModel: DrawerViewModel): List<Tab> {
+    val all = mainViewModel.tabs
+    if (Settings.show_all_files) return all
+    val projectPath = (drawerViewModel.currentDrawerTab as? FileTreeTab)?.root?.getAbsolutePath() ?: return all
+    return all.filter { tab -> tab !is EditorTab || tab.projectRoot?.getAbsolutePath() == projectPath }
 }
 
 @Composable

@@ -162,7 +162,7 @@ fun AboutScreen() {
                     )
                 },
                 sideEffect = {
-                    val url = "https://github.com/Xed-Editor/Xed-Editor"
+                    val url = "https://github.com/GoyDevv/Xed-EditorPRO"
                     val intent = Intent(Intent.ACTION_VIEW).apply { data = url.toUri() }
                     context.startActivity(intent)
                 },

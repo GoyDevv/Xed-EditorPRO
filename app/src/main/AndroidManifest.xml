@@ -11,6 +11,7 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission
         android:name="android.permission.READ_PHONE_STATE"
@@ -47,6 +48,14 @@
 
         <service
             android:name="com.rk.terminal.SessionService"
+            android:foregroundServiceType="specialUse" />
+
+        <service
+            android:name="com.rk.projects.DependencyInstallService"
+            android:foregroundServiceType="specialUse" />
+
+        <service
+            android:name="com.rk.runner.RunService"
             android:foregroundServiceType="specialUse" />
 
         <activity

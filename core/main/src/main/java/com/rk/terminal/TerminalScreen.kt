@@ -266,6 +266,9 @@ private fun ColumnScope.TerminalView(
                 setTextSize(dpToPx(Settings.terminal_font_size.toFloat(), context))
                 val client = TerminalBackEnd()
 
+                // Captured before MkSession consumes (nulls) pendingCommand below.
+                val pendingId = pendingCommand?.id
+
                 val session =
                     if (pendingCommand != null) {
                         terminalActivity.sessionBinder?.get()!!.getService().currentSession.value = pendingCommand!!.id
@@ -291,6 +294,12 @@ private fun ColumnScope.TerminalView(
                 session.updateTerminalSessionClient(client)
                 attachSession(session)
                 setTerminalViewClient(client)
+
+                // If this is the run/build session the editor's floating view is waiting for, hook
+                // it up so live output is mirrored there even after the user leaves the terminal.
+                if (pendingId != null && pendingId == AutoSetupState.expectedSessionId) {
+                    AutoSetupState.attach(session)
+                }
 
                 // Legacy behavior
                 val fontFile = sandboxDir().child("etc/font.ttf")

@@ -36,6 +36,10 @@ object Settings {
 
     var read_only_default by CachedPreference("read_only_default", false)
     var shown_disclaimer by CachedPreference("shown_disclaimer", false)
+    // First-launch Auto Setup: whether the one-time environment setup completed successfully, and
+    // whether the user dismissed/declined the prompt (so we don't keep nagging on every launch).
+    var auto_setup_completed by CachedPreference("auto_setup_completed", false)
+    var auto_setup_prompt_dismissed by CachedPreference("auto_setup_prompt_dismissed", false)
     var warn_extensions by CachedPreference("warn_extensions", true)
     var amoled by CachedPreference("amoled", false)
     var monet by CachedPreference("monet", false)
@@ -44,7 +48,7 @@ object Settings {
     var word_wrap by CachedPreference("word_wrap", false)
     var restore_sessions by CachedPreference("restore_sessions", true)
     var cursor_animation by CachedPreference("cursor_animation", true)
-    var show_extra_keys by CachedPreference("show_extra_keys", hasHardwareKeyboard(application!!).not())
+    var show_extra_keys by CachedPreference("show_extra_keys", false)
     var keep_drawer_locked by CachedPreference("drawer_lock", false)
     var show_line_numbers by CachedPreference("show_line_number", true)
     var render_whitespace by CachedPreference("render_whitespace", false)
@@ -63,6 +67,8 @@ object Settings {
     var github by CachedPreference("github", true)
     var has_shown_private_data_dir_warning by CachedPreference("has_shown_private_data_dir_warning", false)
     var has_shown_terminal_dir_warning by CachedPreference("has_shown_terminal_dir_warning", false)
+    // When true, skip the Android 11+ permission caution shown before opening a directory.
+    var open_dir_warning_dismissed by CachedPreference("open_dir_warning_dismissed", false)
     var anr_watchdog by CachedPreference("anr", BuildConfig.DEBUG)
     var strict_mode by CachedPreference("strict_mode", BuildConfig.DEBUG)
     var expose_home_dir by CachedPreference("expose_home_dir", false)
@@ -81,6 +87,15 @@ object Settings {
     var compact_folders_drawer by CachedPreference("compact_folders_drawer", true)
     var show_hidden_files_search by CachedPreference("show_hidden_files_search", false)
     var show_tab_icons by CachedPreference("show_tab_icons", true)
+    // When false (default), open editor tabs are scoped to the currently selected project/directory
+    // in the drawer; when true, every open file is shown together regardless of its project.
+    var show_all_files by CachedPreference("show_all_files", false)
+    // One-time flag: ensures the "Show all files" toggle is injected into existing users' toolbars.
+    var migrated_show_all_files_toolbar by CachedPreference("migrated_show_all_files_toolbar", false)
+    // One-time flag: injects the Android "Gradle sync" button next to Run for existing users.
+    var migrated_sync_toolbar by CachedPreference("migrated_sync_toolbar", false)
+    // One-time flag: injects the "Extra keys" toggle into existing users' editor toolbars.
+    var migrated_extra_keys_toolbar by CachedPreference("migrated_extra_keys_toolbar", false)
     var split_extra_keys by CachedPreference("split_extra_keys", false)
     var extra_keys_bg by CachedPreference("extra_keys_bg", false)
     var auto_open_new_files by CachedPreference("auto_open_new_files", true)

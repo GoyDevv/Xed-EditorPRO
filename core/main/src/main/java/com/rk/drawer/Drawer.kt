@@ -54,7 +54,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.rk.activities.main.MainActivity
 import com.rk.activities.main.gitViewModel
+import com.rk.activities.settings.SettingsActivity
 import com.rk.components.DoubleInputDialog
+import com.rk.components.isDrawerExpanded
+import com.rk.components.isPermanentDrawer
 import com.rk.file.FileWrapper
 import com.rk.file.sandboxHomeDir
 import com.rk.file.toFileObject
@@ -64,6 +67,7 @@ import com.rk.icons.XedIcon
 import com.rk.projects.CreateProjectDialog
 import com.rk.projects.ProjectDependencies
 import com.rk.projects.ProjectScaffolder
+import com.rk.settings.Settings
 import com.rk.exec.isTerminalInstalled
 import com.rk.exec.launchTerminal
 import com.rk.resources.drawables
@@ -72,7 +76,6 @@ import com.rk.resources.strings
 import com.rk.utils.dialogRes
 import com.rk.utils.toast
 import com.rk.utils.StorageUtils
-import android.os.Environment
 import java.io.File
 import kotlinx.coroutines.launch
 
@@ -118,6 +121,7 @@ fun DrawerContent(fullscreen: Boolean) {
                 val scope = rememberCoroutineScope()
                 var showAddDialog by rememberSaveable { mutableStateOf(false) }
                 var closeProjectDialog by remember { mutableStateOf(false) }
+                var showOpenDirWarning by remember { mutableStateOf(false) }
 
                 // Git clone dialog
                 var showGitCloneDialog by remember { mutableStateOf(false) }
@@ -178,47 +182,41 @@ fun DrawerContent(fullscreen: Boolean) {
                     }
                 }
 
-                val cloneGitRepo =
-                    rememberLauncherForActivityResult(
-                        contract = ActivityResultContracts.OpenDocumentTree(),
-                        onResult = { uri ->
-                            uri?.let {
-                                runCatching {
-                                        context.contentResolver.takePersistableUriPermission(
-                                            it,
-                                            Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                                                Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
-                                        )
+                // Clone straight into the terminal sandbox home, each repo in its own folder
+                // (e.g. home/goyapp, home/blah) so multiple cloned projects never get mixed up.
+                // No "where to save" picker: build/run tooling only works from the exec-capable
+                // sandbox anyway, so the destination is chosen intelligently.
+                val cloneIntoSandbox: () -> Unit = {
+                    val repoName =
+                        repoURL.substringAfterLast("/").substringBeforeLast(".").ifBlank { "repo" }
+                    scope.launch {
+                        val baseDir = sandboxHomeDir()
+                        var target = File(baseDir, repoName)
+                        var suffix = 1
+                        while (target.exists()) {
+                            target = File(baseDir, "$repoName-$suffix")
+                            suffix++
+                        }
+                        val fileObject = FileWrapper(target)
+                        gitViewModel
+                            .get()
+                            ?.cloneRepository(
+                                repoURL = repoURL,
+                                repoBranch = repoBranch,
+                                targetDir = target,
+                                progressCoordinator = monitor,
+                                onComplete = { success ->
+                                    repoURL = ""
+                                    repoBranch = "main"
+                                    repoURLError = null
+                                    repoBranchError = null
+                                    if (success) {
+                                        viewModel.addFileTreeTab(fileObject, save = true)
                                     }
-                                    .onFailure { it.printStackTrace() }
-                                scope.launch {
-                                    val fileObject =
-                                        it.toFileObject(expectedIsFile = false)
-                                            .createChild(
-                                                false,
-                                                repoURL.substringAfterLast("/").substringBeforeLast("."),
-                                            )
-                                    gitViewModel
-                                        .get()
-                                        ?.cloneRepository(
-                                            repoURL = repoURL,
-                                            repoBranch = repoBranch,
-                                            targetDir = File(fileObject!!.getAbsolutePath()),
-                                            progressCoordinator = monitor,
-                                            onComplete = { success ->
-                                                repoURL = ""
-                                                repoBranch = "main"
-                                                repoURLError = null
-                                                repoBranchError = null
-                                                if (success) {
-                                                    viewModel.addFileTreeTab(fileObject)
-                                                }
-                                            },
-                                        )
-                                }
-                            }
-                        },
-                    )
+                                },
+                            )
+                    }
+                }
 
                 val lazyListState = rememberLazyListState()
                 val showHorizontalDivider by remember { derivedStateOf { lazyListState.canScrollForward } }
@@ -286,6 +284,56 @@ fun DrawerContent(fullscreen: Boolean) {
                                     enabled = tab.isEnabled(),
                                 )
                             }
+
+                            // Quick access to Settings, right next to Directory/Git so it's easy to find.
+                            NavigationRailItem(
+                                selected = false,
+                                icon = {
+                                    Icon(
+                                        painter = painterResource(drawables.settings),
+                                        contentDescription = stringResource(strings.settings),
+                                    )
+                                },
+                                onClick = {
+                                    mainActivity.startActivity(Intent(mainActivity, SettingsActivity::class.java))
+                                },
+                                label = {
+                                    Text(stringResource(strings.settings), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                },
+                            )
+
+                            // Maximize / restore the drawer width. Only meaningful for the modal
+                            // (overlay) drawer; the permanent drawer has a fixed layout.
+                            if (!isPermanentDrawer) {
+                                NavigationRailItem(
+                                    selected = false,
+                                    icon = {
+                                        Icon(
+                                            painter =
+                                                painterResource(
+                                                    if (isDrawerExpanded) drawables.chevron_left
+                                                    else drawables.chevron_right
+                                                ),
+                                            contentDescription =
+                                                stringResource(
+                                                    if (isDrawerExpanded) strings.collapse_drawer
+                                                    else strings.expand_drawer
+                                                ),
+                                        )
+                                    },
+                                    onClick = { isDrawerExpanded = !isDrawerExpanded },
+                                    label = {
+                                        Text(
+                                            stringResource(
+                                                if (isDrawerExpanded) strings.collapse_drawer
+                                                else strings.expand_drawer
+                                            ),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    },
+                                )
+                            }
                         }
                     }
                 }
@@ -327,6 +375,13 @@ fun DrawerContent(fullscreen: Boolean) {
                     AddProjectSheet(
                         onDismiss = { showAddDialog = false },
                         openFolder = openFolder,
+                        onOpenDirectory = {
+                            if (Settings.open_dir_warning_dismissed) {
+                                openFolder.launch(null)
+                            } else {
+                                showOpenDirWarning = true
+                            }
+                        },
                         onAddProject = { fileObject -> scope.launch { viewModel.addFileTreeTab(fileObject, true) } },
                         showPrivateFileWarning = { callback ->
                             dialogRes(
@@ -343,6 +398,16 @@ fun DrawerContent(fullscreen: Boolean) {
                             showAddDialog = false
                             showCreateProjectDialog = true
                         },
+                    )
+                }
+
+                if (showOpenDirWarning) {
+                    OpenDirectoryWarningDialog(
+                        onConfirm = {
+                            showOpenDirWarning = false
+                            openFolder.launch(null)
+                        },
+                        onCancel = { showOpenDirWarning = false },
                     )
                 }
 
@@ -385,7 +450,7 @@ fun DrawerContent(fullscreen: Boolean) {
                         secondErrorMessage = repoBranchError,
                         onConfirm = {
                             showGitCloneDialog = false
-                            cloneGitRepo.launch(null)
+                            cloneIntoSandbox()
                         },
                         onDismiss = {
                             showGitCloneDialog = false
@@ -400,11 +465,8 @@ fun DrawerContent(fullscreen: Boolean) {
                 }
 
                 if (showCreateProjectDialog) {
-                    val documentsXed =
-                        File(Environment.getExternalStorageDirectory(), "Documents/XED")
                     CreateProjectDialog(
-                        documentsDir = documentsXed,
-                        sandboxDir = sandboxHomeDir(),
+                        projectsDir = sandboxHomeDir(),
                         onDismiss = { showCreateProjectDialog = false },
                         onCreate = { config ->
                             showCreateProjectDialog = false

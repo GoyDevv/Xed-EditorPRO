@@ -37,6 +37,7 @@ fun AddProjectSheet(
     onDismiss: () -> Unit,
     onAddProject: (FileObject) -> Unit,
     openFolder: ManagedActivityResultLauncher<Uri?, Uri?>,
+    onOpenDirectory: () -> Unit,
     showPrivateFileWarning: (onOK: () -> Unit) -> Unit,
     showGitCloneDialog: () -> Unit,
     showCreateProject: () -> Unit,
@@ -64,7 +65,7 @@ fun AddProjectSheet(
                 title = stringResource(strings.open_directory),
                 description = stringResource(strings.open_dir_desc),
                 onClick = {
-                    openFolder.launch(null)
+                    onOpenDirectory()
                     onDismiss()
                 },
             )

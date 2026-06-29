@@ -89,7 +89,7 @@ fun TerminalCheckScreen() {
                 text = stringResource(strings.samsung_proot_warning),
                 warning = true,
                 onClick = {
-                    context.openUrl("https://github.com/Xed-Editor/Xed-Editor/issues/639")
+                    context.openUrl("https://github.com/GoyDevv/Xed-EditorPRO/issues")
                 },
             )
         }
