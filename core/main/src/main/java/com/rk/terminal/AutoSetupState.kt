@@ -8,25 +8,26 @@ import java.lang.ref.WeakReference
 
 enum class AutoSetupPhase {
     Idle,
-    Running,
+    Preparing,
+    Downloading,
+    Extracting,
+    Installing,
     Done,
     Error,
 }
 
 /**
- * Observable state for the first-launch Auto Setup flow.
+ * Observable state for the first-launch Auto Setup flow, modelled as ordered phases so the
+ * full-screen progress UI can show real, end-to-end progress:
  *
- * Auto Setup runs `auto_setup.sh` inside the terminal sandbox (apt update/upgrade + install of the
- * core tools). The script prints machine-readable markers that this object parses into a clean
- * progress UI shown by [com.rk.terminal.AutoSetupOverlay], while the terminal itself runs behind it:
+ *   Preparing → Downloading (sandbox rootfs) → Extracting → Installing (apt packages) → Done/Error
  *
- *   __XEDPROGRESS__ <percent> <message>   → progress + status line
- *   __XEDDONE__                            → finished successfully
- *   __XEDERROR__ <message>                 → failed (message optional)
+ * Progress is a single 0..1 value spanning all phases (download 0–40%, extraction ~46%, install
+ * 50–100%) so it never looks "stuck at 0%" during the long sandbox download. A live tail of the
+ * terminal output is exposed for the on-screen log.
  *
- * Wiring mirrors [com.rk.runner.RunOutputState]: [AutoSetup] calls [begin] before launching the
- * terminal, [TerminalScreen] calls [attach] when the matching session is created, and
- * [TerminalBackEnd] calls [onOutput]/[onFinished].
+ * Fed by [com.rk.activities.terminal.Terminal] (download/extraction) and [TerminalBackEnd]
+ * (install output markers from auto_setup.sh).
  */
 object AutoSetupState {
 
@@ -36,18 +37,22 @@ object AutoSetupState {
     private const val MARKER_DONE = "__XEDDONE__"
     private const val MARKER_ERROR = "__XEDERROR__"
 
+    private const val DOWNLOAD_WEIGHT = 0.40f
+    private const val EXTRACT_AT = 0.46f
+    private const val INSTALL_BASE = 0.50f
+
     var phase by mutableStateOf(AutoSetupPhase.Idle)
         private set
 
-    /** 0f..1f progress for the bar. */
+    /** Overall progress 0f..1f across all phases. */
     var progress by mutableStateOf(0f)
         private set
 
-    /** Human-readable current step, e.g. "Installing tools (curl, git, wget)". */
+    /** Current human-readable step, e.g. "Downloading sandbox (32/55 MB)" or "Installing Node.js". */
     var status by mutableStateOf("")
         private set
 
-    /** Full terminal transcript, used for the error report. */
+    /** Full terminal transcript (for the live output tail + error report). */
     var log by mutableStateOf("")
         private set
 
@@ -59,17 +64,40 @@ object AutoSetupState {
     val isActive: Boolean
         get() = phase != AutoSetupPhase.Idle
 
+    private fun mb(bytes: Long): String = "%.0f".format(bytes / (1024.0 * 1024.0))
+
     fun begin(sessionId: String) {
-        phase = AutoSetupPhase.Running
+        phase = AutoSetupPhase.Preparing
         progress = 0f
-        status = ""
+        status = "Preparing…"
         log = ""
         expectedSessionId = sessionId
         trackedSession = null
     }
 
+    /** Sandbox rootfs download progress (called from the terminal download flow). */
+    fun onDownload(downloadedBytes: Long, totalBytes: Long) {
+        if (phase == AutoSetupPhase.Done || phase == AutoSetupPhase.Error) return
+        phase = AutoSetupPhase.Downloading
+        progress = if (totalBytes > 0) (downloadedBytes.toFloat() / totalBytes) * DOWNLOAD_WEIGHT else 0f
+        status =
+            if (totalBytes > 0) "Downloading sandbox (${mb(downloadedBytes)}/${mb(totalBytes)} MB)"
+            else "Downloading sandbox…"
+    }
+
+    /** Download finished; sandbox is being extracted / prepared. */
+    fun onExtracting() {
+        if (phase == AutoSetupPhase.Done || phase == AutoSetupPhase.Error) return
+        phase = AutoSetupPhase.Extracting
+        progress = EXTRACT_AT
+        status = "Extracting & preparing sandbox…"
+    }
+
     fun attach(session: TerminalSession) {
         trackedSession = WeakReference(session)
+        if (phase == AutoSetupPhase.Preparing || phase == AutoSetupPhase.Downloading) {
+            onExtracting()
+        }
         runCatching { session.emulator?.screen?.transcriptTextWithoutJoinedLines }.getOrNull()?.let { onOutput(it) }
     }
 
@@ -78,14 +106,16 @@ object AutoSetupState {
     fun onOutput(transcript: String) {
         log = transcript
 
-        // Latest progress marker wins.
         transcript
             .lineSequence()
             .lastOrNull { it.contains(MARKER_PROGRESS) }
             ?.let { line ->
                 val rest = line.substringAfter(MARKER_PROGRESS).trim()
                 val pct = rest.substringBefore(' ').toIntOrNull()
-                if (pct != null) progress = (pct / 100f).coerceIn(0f, 1f)
+                if (pct != null) {
+                    phase = AutoSetupPhase.Installing
+                    progress = (INSTALL_BASE + (pct / 100f) * (1f - INSTALL_BASE)).coerceIn(INSTALL_BASE, 1f)
+                }
                 val msg = rest.substringAfter(' ', "").trim()
                 if (msg.isNotEmpty()) status = msg
             }
@@ -94,18 +124,20 @@ object AutoSetupState {
             transcript.contains(MARKER_DONE) -> {
                 progress = 1f
                 phase = AutoSetupPhase.Done
+                status = "Setup complete"
             }
             transcript.contains(MARKER_ERROR) -> {
                 phase = AutoSetupPhase.Error
+                status = "Setup failed"
             }
         }
     }
 
-    /** Called when the terminal process exits; infer success/failure if no explicit marker arrived. */
+    /** Process exited; infer success/failure if no explicit marker arrived. */
     fun onFinished() {
-        if (phase == AutoSetupPhase.Running) {
-            phase = if (log.contains(MARKER_DONE)) AutoSetupPhase.Done else AutoSetupPhase.Error
-        }
+        if (phase == AutoSetupPhase.Done || phase == AutoSetupPhase.Error) return
+        phase = if (log.contains(MARKER_DONE)) AutoSetupPhase.Done else AutoSetupPhase.Error
+        status = if (phase == AutoSetupPhase.Done) "Setup complete" else "Setup failed"
     }
 
     fun stop() {
