@@ -79,7 +79,8 @@ fun RunOutputView(modifier: Modifier = Modifier) {
     val contentHeight by
         animateDpAsState(
             targetValue = if (expanded) expandedHeight else 0.dp,
-            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+            // Smooth, gently-bouncy and symmetric for both open and close (no slow overshoot).
+            animationSpec = spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow),
             label = "runOutputHeight",
         )
 

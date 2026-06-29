@@ -54,6 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.rk.activities.main.MainActivity
 import com.rk.activities.main.gitViewModel
+import com.rk.activities.settings.SettingsActivity
 import com.rk.components.DoubleInputDialog
 import com.rk.components.isDrawerExpanded
 import com.rk.components.isPermanentDrawer
@@ -281,6 +282,23 @@ fun DrawerContent(fullscreen: Boolean) {
                                     enabled = tab.isEnabled(),
                                 )
                             }
+
+                            // Quick access to Settings, right next to Directory/Git so it's easy to find.
+                            NavigationRailItem(
+                                selected = false,
+                                icon = {
+                                    Icon(
+                                        painter = painterResource(drawables.settings),
+                                        contentDescription = stringResource(strings.settings),
+                                    )
+                                },
+                                onClick = {
+                                    mainActivity.startActivity(Intent(mainActivity, SettingsActivity::class.java))
+                                },
+                                label = {
+                                    Text(stringResource(strings.settings), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                },
+                            )
 
                             // Maximize / restore the drawer width. Only meaningful for the modal
                             // (overlay) drawer; the permanent drawer has a fixed layout.

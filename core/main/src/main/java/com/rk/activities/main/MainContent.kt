@@ -1,7 +1,6 @@
 package com.rk.activities.main
 
 import androidx.compose.foundation.background
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -35,7 +34,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -64,7 +62,6 @@ import com.rk.filetree.MultiFileAction
 import com.rk.filetree.MultiFileActionContext
 import com.rk.icons.XedIcon
 import com.rk.resources.drawables
-import com.rk.runner.RunOutputState
 import com.rk.runner.RunOutputView
 import com.rk.resources.getString
 import com.rk.resources.strings
@@ -238,17 +235,10 @@ fun MainContent(
 
             HorizontalDivider()
 
-            // Blur the editor behind the build view while it's expanded (API 31+; no-op below).
-            val editorBlur by
-                animateDpAsState(
-                    targetValue = if (RunOutputState.isActive && RunOutputState.expanded) 12.dp else 0.dp,
-                    label = "editorBlur",
-                )
-
             Box(modifier = Modifier.fillMaxSize()) {
                 HorizontalPager(
                     state = pagerState,
-                    modifier = Modifier.fillMaxSize().clipToBounds().blur(editorBlur),
+                    modifier = Modifier.fillMaxSize().clipToBounds(),
                     beyondViewportPageCount = visibleTabs.size,
                     userScrollEnabled = false,
                     key = { visibleTabs.getOrNull(it).hashCode() },

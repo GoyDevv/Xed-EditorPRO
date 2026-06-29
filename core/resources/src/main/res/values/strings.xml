@@ -764,4 +764,6 @@
     <string name="auto_setup_report">Report on GitHub</string>
     <string name="auto_setup_close">Close</string>
     <string name="approx">~%1$s</string>
+    <string name="package_name_preview">Application ID</string>
+    <string name="package_name_empty_warning">Package and author are empty — the application ID above is auto-generated from the project name. Set them for a proper identifier (e.g. com.yourname.app).</string>
 </resources>
