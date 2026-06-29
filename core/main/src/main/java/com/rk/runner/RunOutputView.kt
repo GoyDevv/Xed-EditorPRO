@@ -6,6 +6,8 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -49,13 +51,23 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.blankj.utilcode.util.ClipboardUtils
 import com.rk.resources.drawables
 import com.rk.resources.strings
 import com.rk.utils.toast
+
+/** Compact monospace style for the full output — tight line spacing so log lines read as one block. */
+private val OutputTextStyle =
+    TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.sp)
+
+/** Compact monospace style for the collapsed bar's latest line. */
+private val LatestLineStyle =
+    TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 14.sp, letterSpacing = 0.sp)
 
 /**
  * Floating build/run view shown at the bottom of the editor while a background build runs.
@@ -68,8 +80,7 @@ import com.rk.utils.toast
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun RunOutputView(modifier: Modifier = Modifier) {
-    if (!RunOutputState.isActive) return
+fun RunOutputView(modifier: Modifier = Modifier) {    if (!RunOutputState.isActive) return
 
     val expanded = RunOutputState.expanded
     val imeVisible = WindowInsets.isImeVisible
@@ -79,8 +90,8 @@ fun RunOutputView(modifier: Modifier = Modifier) {
     val contentHeight by
         animateDpAsState(
             targetValue = if (expanded) expandedHeight else 0.dp,
-            // Smooth, gently-bouncy and symmetric for both open and close (no slow overshoot).
-            animationSpec = spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow),
+            // Snappy yet smooth with a subtle settle — symmetric for open and close.
+            animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMedium),
             label = "runOutputHeight",
         )
 
@@ -150,9 +161,11 @@ fun RunOutputView(modifier: Modifier = Modifier) {
                     SelectionContainer(modifier = Modifier.weight(1f).fillMaxWidth()) {
                         Text(
                             text = RunOutputState.output,
-                            modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(12.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                            fontFamily = FontFamily.Monospace,
+                            modifier =
+                                Modifier.fillMaxSize()
+                                    .verticalScroll(scrollState)
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                            style = OutputTextStyle,
                         )
                     }
                     HorizontalDivider()
@@ -220,13 +233,15 @@ private fun Header(expanded: Boolean) {
                         if (RunOutputState.isRunning) stringResource(strings.running)
                         else stringResource(strings.finished)
                     },
-                transitionSpec = { fadeIn() togetherWith fadeOut() },
+                // New output line slides up while the old one slides out — a smooth streaming feel.
+                transitionSpec = {
+                    (slideInVertically { it } + fadeIn()) togetherWith (slideOutVertically { -it } + fadeOut())
+                },
                 label = "latestLine",
             ) { line ->
                 Text(
                     text = line,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
+                    style = LatestLineStyle,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

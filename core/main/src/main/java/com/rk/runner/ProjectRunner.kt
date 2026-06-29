@@ -12,6 +12,7 @@ import com.rk.projects.DetectedProjectType
 import com.rk.projects.ProjectTypeDetector
 import com.rk.runner.runners.web.html.HtmlRunner
 import com.rk.terminal.setupAssetFile
+import com.rk.terminal.setupTerminalFiles
 import java.io.File
 
 /**
@@ -82,6 +83,9 @@ object ProjectRunner {
         // /storage/emulated/0 path is not always reachable inside proot, which caused the
         // "Cannot enter project directory" error).
         setupAssetFile("project_runner")
+        // The background run path doesn't go through MkSession, so make sure the helper scripts the
+        // run script sources ($LOCAL/bin/utils, etc.) are installed. Idempotent.
+        setupTerminalFiles()
         val sandboxRoot = toSandboxPath(rootPath)
         val sandboxFile = toSandboxPath(file.getAbsolutePath())
         val label = "Run · ${rootFile.name}"
@@ -130,6 +134,7 @@ object ProjectRunner {
         if (!isTerminalInstalled()) return
 
         setupAssetFile("project_runner")
+        setupTerminalFiles()
         val sandboxRoot = toSandboxPath(rootPath)
         val label = "Sync · ${File(rootPath).name}"
         val scriptPath = localBinDir().child("project_runner").absolutePath

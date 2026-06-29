@@ -48,7 +48,7 @@ object Settings {
     var word_wrap by CachedPreference("word_wrap", false)
     var restore_sessions by CachedPreference("restore_sessions", true)
     var cursor_animation by CachedPreference("cursor_animation", true)
-    var show_extra_keys by CachedPreference("show_extra_keys", hasHardwareKeyboard(application!!).not())
+    var show_extra_keys by CachedPreference("show_extra_keys", false)
     var keep_drawer_locked by CachedPreference("drawer_lock", false)
     var show_line_numbers by CachedPreference("show_line_number", true)
     var render_whitespace by CachedPreference("render_whitespace", false)
@@ -92,6 +92,8 @@ object Settings {
     var migrated_show_all_files_toolbar by CachedPreference("migrated_show_all_files_toolbar", false)
     // One-time flag: injects the Android "Gradle sync" button next to Run for existing users.
     var migrated_sync_toolbar by CachedPreference("migrated_sync_toolbar", false)
+    // One-time flag: injects the "Extra keys" toggle into existing users' editor toolbars.
+    var migrated_extra_keys_toolbar by CachedPreference("migrated_extra_keys_toolbar", false)
     var split_extra_keys by CachedPreference("split_extra_keys", false)
     var extra_keys_bg by CachedPreference("extra_keys_bg", false)
     var auto_open_new_files by CachedPreference("auto_open_new_files", true)

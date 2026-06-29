@@ -109,6 +109,14 @@ class App : Application() {
             }
             Settings.migrated_sync_toolbar = true
         }
+
+        // One-time: add the "Extra keys" toggle to the editor toolbar for existing users.
+        if (!Settings.migrated_extra_keys_toolbar) {
+            if (!Settings.action_items.split("|").contains("editor.toggle_extra_keys")) {
+                ToolbarConfiguration.addEditorToolbarCommand("editor.toggle_extra_keys")
+            }
+            Settings.migrated_extra_keys_toolbar = true
+        }
         KeybindingsManager.loadKeybindings()
 
         val currentLocale = Locale.forLanguageTag(Settings.current_lang)

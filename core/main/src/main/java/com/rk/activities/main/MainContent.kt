@@ -117,7 +117,8 @@ fun MainContent(
         )
     }
 
-    Column(Modifier.fillMaxSize().padding(innerPadding)) {
+    Box(Modifier.fillMaxSize().padding(innerPadding)) {
+        Column(Modifier.fillMaxSize()) {
         // Open tabs scoped to the selected project/directory (unless "Show all files" is on).
         val visibleTabs = visibleTabsFor(mainViewModel, drawerViewModel)
         val currentProjectPath = (drawerViewModel.currentDrawerTab as? FileTreeTab)?.root?.getAbsolutePath()
@@ -235,21 +236,20 @@ fun MainContent(
 
             HorizontalDivider()
 
-            Box(modifier = Modifier.fillMaxSize()) {
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxSize().clipToBounds(),
-                    beyondViewportPageCount = visibleTabs.size,
-                    userScrollEnabled = false,
-                    key = { visibleTabs.getOrNull(it).hashCode() },
-                ) { page ->
-                    visibleTabs.getOrNull(page)?.Content()
-                }
-
-                // Floating, background build/run progress (fed by RunService); no terminal needed.
-                RunOutputView(modifier = Modifier.align(Alignment.BottomCenter))
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize().clipToBounds(),
+                beyondViewportPageCount = visibleTabs.size,
+                userScrollEnabled = false,
+                key = { visibleTabs.getOrNull(it).hashCode() },
+            ) { page ->
+                visibleTabs.getOrNull(page)?.Content()
             }
         }
+        }
+
+        // Always-visible floating build/run output — works even with no file open.
+        RunOutputView(modifier = Modifier.align(Alignment.BottomCenter))
     }
 }
 
