@@ -13,49 +13,21 @@ efficient editing.
 
 ## Documentation
 
-To learn more about Xed-Editor‘s features and usage, visit the official
-documentation: https://xed-editor.github.io/Xed-Docs/
+To learn more about Xed-Editor PRO‘s features and usage, visit the official
 
-[![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/6bKzcQRuef)
-[![Telegram](https://img.shields.io/badge/Telegram-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/XedEditor)
-
+[![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/F2y8eva6e6)
 ---
 
 ## Download
-
-<div>
-  <a href="https://android.izzysoft.de/repo/apk/com.rk.xededitor">
-    <img src="https://img.shields.io/endpoint?url=https://apt.izzysoft.de/fdroid/api/v1/shield/com.rk.xededitor&label=IzzyOnDroid&cacheSeconds=33000">
-  </a>
-  <a href="https://f-droid.org/packages/com.rk.xededitor">
-    <img src="https://img.shields.io/f-droid/v/com.rk.xededitor">
-  </a>
-</div>
 
 - **Latest Alpha Build**: Download from [Actions](https://github.com/GoyDevv/Xed-EditorPRO/actions/)
 - **Latest Stable Build**: Download
   from [Releases](https://github.com/GoyDevv/Xed-EditorPRO/releases)
 
-[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="80">](https://f-droid.org/packages/com.rk.xededitor)
-[<img src="https://gitlab.com/IzzyOnDroid/repo/-/raw/master/assets/IzzyOnDroid.png?ref_type=heads" alt="Get it on IzzyOnDroid" height="80">](https://apt.izzysoft.de/fdroid/index/apk/com.rk.xededitor)
 [<img src="https://raw.githubusercontent.com/Kunzisoft/Github-badge/main/get-it-on-github.png" alt="Get it on GitHub" height="80">](https://github.com/GoyDevv/Xed-EditorPRO/releases/latest)
 
 ---
 
-## Screenshots
-
-<div>
-  <img src="/fastlane/metadata/android/en-US/images/phoneScreenshots/01.jpg" width="32%" />
-  <img src="/fastlane/metadata/android/en-US/images/phoneScreenshots/02.jpg" width="32%" />
-  <img src="/fastlane/metadata/android/en-US/images/phoneScreenshots/03.jpg" width="32%" />
-</div>
-<div>
-  <img src="/fastlane/metadata/android/en-US/images/phoneScreenshots/04.jpg" width="32%" />
-  <img src="/fastlane/metadata/android/en-US/images/phoneScreenshots/05.jpg" width="32%" />
-  <img src="/fastlane/metadata/android/en-US/images/phoneScreenshots/06.jpg" width="32%" />
-</div>
-
----
 
 ## Building the Project
 
@@ -78,14 +50,6 @@ The output debug APK will be generated at `out/debug/app-debug.apk`.
 
 ---
 
-## Contributing
-
-We welcome contributions! Please read the [`/docs/CONTRIBUTING.md`](/docs/CONTRIBUTING.md) file to
-learn how
-you can get involved.
-
----
-
 ## Translations
 
 Help translate Xed-Editor! Visit [Weblate](https://hosted.weblate.org/engage/xed-editor/) to get
@@ -97,8 +61,6 @@ started:
 
 ---
 
-## Contributors
+## Copyright
 
-<a href="https://github.com/GoyDevv/Xed-EditorPRO/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=GoyDevv/Xed-EditorPRO" />
-</a>
+This IDE was forked from XedEditor Originally As a text editor. We are completly separate projects, please do not create issue about our IDE to their Project. 
