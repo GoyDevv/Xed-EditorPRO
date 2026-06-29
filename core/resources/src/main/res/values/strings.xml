@@ -766,4 +766,5 @@
     <string name="approx">~%1$s</string>
     <string name="package_name_preview">Application ID</string>
     <string name="package_name_empty_warning">Package and author are empty — the application ID above is auto-generated from the project name. Set them for a proper identifier (e.g. com.yourname.app).</string>
+    <string name="gradle_sync">Gradle sync</string>
 </resources>

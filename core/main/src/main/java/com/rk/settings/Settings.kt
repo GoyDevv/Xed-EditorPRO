@@ -90,6 +90,8 @@ object Settings {
     var show_all_files by CachedPreference("show_all_files", false)
     // One-time flag: ensures the "Show all files" toggle is injected into existing users' toolbars.
     var migrated_show_all_files_toolbar by CachedPreference("migrated_show_all_files_toolbar", false)
+    // One-time flag: injects the Android "Gradle sync" button next to Run for existing users.
+    var migrated_sync_toolbar by CachedPreference("migrated_sync_toolbar", false)
     var split_extra_keys by CachedPreference("split_extra_keys", false)
     var extra_keys_bg by CachedPreference("extra_keys_bg", false)
     var auto_open_new_files by CachedPreference("auto_open_new_files", true)

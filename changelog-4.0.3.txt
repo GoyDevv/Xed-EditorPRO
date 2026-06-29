@@ -1,0 +1,57 @@
+Xed-Editor PRO — Changelog
+Version 4.0.3 (versionCode 102)
+
+Run-button fixes + Android support.
+
+================================================================================
+1. Reverted the broken Run button change from 4.0.2
+================================================================================
+- core/main/.../commands/editor/RunCommand.kt — restored the working file/project-based Run
+  (the 4.0.2 drawer-aware experiment broke it). Run/Stop, single-build gate, and background
+  execution are unchanged.
+
+================================================================================
+2. Run now works without a file open (detects the chosen directory/project)
+================================================================================
+- core/main/.../components/GlobalToolbarActions.kt — when no file is open (or on a non-editor
+  tab), the toolbar now shows Run/Stop (and the Android Sync button) driven by the project
+  selected in the drawer. So the Run button reflects the directory/project you're in, even with
+  nothing open — no file required. With a file open, the editor's Run button handles it as before
+  (no duplicate buttons).
+
+================================================================================
+3. Android projects are now runnable (build + install)
+================================================================================
+- core/main/.../runner/ProjectRunner.kt — `isRunnable` now includes ANDROID. Android "Run" builds
+  the debug APK in the background and then installs it.
+- core/main/.../assets/terminal/project_runner.sh — new ANDROID case: exports ANDROID_HOME
+  (=$HOME/android-sdk, installed via the Dependencies dialog), writes local.properties, runs
+  `./gradlew assembleDebug`, and locates the built APK. New SYNC case for gradle sync.
+- core/main/.../runner/RunService.kt + ApkInstaller.kt (new) — after a successful Android build,
+  RunService locates the newest debug APK under the project and launches the system installer via
+  the app's FileProvider (copying the APK into the external files dir, which file_paths covers).
+- app/src/main/AndroidManifest.xml — added REQUEST_INSTALL_PACKAGES so the install prompt can fire.
+  (You still confirm the install — the on-device equivalent of Android Studio's run.)
+
+================================================================================
+4. Gradle Sync button (Android only), beside Run
+================================================================================
+- core/main/.../commands/editor/SyncCommand.kt (new) — "Gradle sync" editor command, shown only
+  for Android projects, right beside Run. Runs `./gradlew --refresh-dependencies tasks` in the
+  background (the one-time dependency sync, like Android Studio).
+- Registered in CommandProvider; added to the default editor toolbar after editor.run; a one-time
+  migration (migrated_sync_toolbar) injects it for existing users.
+- Also shown in the global toolbar (no-file case) for Android projects.
+
+================================================================================
+5. Version
+================================================================================
+- app/build.gradle.kts — versionName 4.0.2 -> 4.0.3, versionCode 101 -> 102.
+
+================================================================================
+Notes
+================================================================================
+- Android build requires the Android SDK in the sandbox — install it from the editor's
+  Dependencies dialog ("Android SDK"), then Sync, then Run. The dependency downloader installs
+  globally into the shared sandbox.
+- Local build wasn't possible in the dev environment; verification is via GitHub Actions CI.

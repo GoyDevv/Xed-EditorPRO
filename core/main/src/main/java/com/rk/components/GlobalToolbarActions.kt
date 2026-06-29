@@ -30,6 +30,10 @@ import com.rk.commands.ToolbarConfiguration
 import com.rk.drawer.DrawerViewModel
 import com.rk.file.FileObject
 import com.rk.file.FileWrapper
+import com.rk.icons.Icon
+import com.rk.projects.DetectedProjectType
+import com.rk.runner.ProjectRunner
+import com.rk.runner.RunOutputState
 import com.rk.file.child
 import com.rk.file.createFileIfNot
 import com.rk.file.toFileObject
@@ -61,6 +65,38 @@ fun GlobalToolbarActions(viewModel: MainViewModel, drawerViewModel: DrawerViewMo
     val commands by remember { derivedStateOf { ToolbarConfiguration.globalCommands } }
 
     if (viewModel.tabs.isEmpty() || viewModel.currentTab?.showGlobalActions == true) {
+        // Run / Stop (and Android Sync) driven by the project selected in the drawer, so they work
+        // even with no file open — the run button detects the chosen directory/project.
+        val projectRoot: FileObject? = (drawerViewModel.currentDrawerTab as? FileTreeTab)?.root
+        if (projectRoot is FileWrapper) {
+            val rootPathStr = projectRoot.getAbsolutePath()
+            if (RunOutputState.isRunning || ProjectRunner.canRun(rootPathStr)) {
+                IconButton(
+                    onClick = {
+                        if (RunOutputState.isRunning) {
+                            RunOutputState.stop()
+                        } else {
+                            activity?.let { act -> DefaultScope.launch { ProjectRunner.run(act, projectRoot, projectRoot) } }
+                        }
+                    }
+                ) {
+                    XedIcon(
+                        if (RunOutputState.isRunning) Icon.ResourceIcon(drawables.stop)
+                        else Icon.ResourceIcon(drawables.run)
+                    )
+                }
+            }
+            if (!RunOutputState.isRunning && ProjectRunner.detect(rootPathStr) == DetectedProjectType.ANDROID) {
+                IconButton(
+                    onClick = {
+                        activity?.let { act -> DefaultScope.launch { ProjectRunner.sync(act, projectRoot, projectRoot) } }
+                    }
+                ) {
+                    XedIcon(Icon.ResourceIcon(drawables.refresh))
+                }
+            }
+        }
+
         for (command in commands) {
             if (command.isSupported()) {
                 IconButton(

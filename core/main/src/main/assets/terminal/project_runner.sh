@@ -80,6 +80,31 @@ gradle_build() {
   show_result $?
 }
 
+# Point Gradle at the Android SDK (installed via the Dependencies dialog into $HOME/android-sdk),
+# and write local.properties so the Android Gradle plugin can find it.
+setup_android_sdk() {
+  if [ -z "$ANDROID_HOME" ] && [ -d "$HOME/android-sdk" ]; then
+    export ANDROID_HOME="$HOME/android-sdk"
+  fi
+  export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+  if [ -n "$ANDROID_HOME" ] && [ ! -f local.properties ]; then
+    printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties 2>/dev/null || true
+  fi
+  if [ -z "$ANDROID_HOME" ] || [ ! -d "$ANDROID_HOME" ]; then
+    warn "Android SDK not found. Open the Dependencies dialog (download icon) and install 'Android SDK', then run again."
+  fi
+}
+
+# Run gradlew with the given args, honouring the noexec fallback.
+run_gradlew() {
+  chmod +x ./gradlew 2>/dev/null
+  if [ -x ./gradlew ]; then
+    ./gradlew "$@"
+  else
+    bash ./gradlew "$@"
+  fi
+}
+
 # --- per-type dispatch -----------------------------------------------------
 
 case "$TYPE" in
@@ -129,6 +154,41 @@ case "$TYPE" in
 
   FABRIC_MOD | FORGE_MOD | GRADLE)
     gradle_build
+    ;;
+
+  ANDROID)
+    need java "JDK"
+    setup_android_sdk
+    if [ ! -f ./gradlew ]; then
+      error "gradlew not found in the project root. This Android project is missing its wrapper."
+      exit 1
+    fi
+    info "Building APK with ./gradlew assembleDebug ..."
+    run_gradlew assembleDebug
+    code=$?
+    if [ "$code" -eq 0 ]; then
+      apk="$(ls -t app/build/outputs/apk/debug/*.apk build/outputs/apk/debug/*.apk 2>/dev/null | head -n1)"
+      if [ -n "$apk" ]; then
+        apk_abs="$(cd "$(dirname "$apk")" 2>/dev/null && pwd)/$(basename "$apk")"
+        info "APK built: $apk_abs"
+        info "Installing… (confirm the system prompt)"
+      else
+        warn "Build succeeded but no APK was found under app/build/outputs/apk/debug/."
+      fi
+    fi
+    show_result $code
+    ;;
+
+  SYNC)
+    need java "JDK"
+    setup_android_sdk
+    if [ ! -f ./gradlew ]; then
+      error "gradlew not found in the project root."
+      exit 1
+    fi
+    info "Syncing Gradle dependencies (./gradlew --refresh-dependencies) ..."
+    run_gradlew --refresh-dependencies tasks
+    show_result $?
     ;;
 
   RUST)

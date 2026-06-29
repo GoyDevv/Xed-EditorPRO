@@ -7,9 +7,6 @@ import com.rk.commands.EditorActionContext
 import com.rk.commands.EditorCommand
 import com.rk.commands.EditorNonActionContext
 import com.rk.commands.KeyCombination
-import com.rk.file.FileObject
-import com.rk.file.FileWrapper
-import com.rk.filetree.FileTreeTab
 import com.rk.icons.Icon
 import com.rk.resources.drawables
 import com.rk.resources.getString
@@ -21,13 +18,11 @@ import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.launch
 
 /**
- * The editor "Run" (play) button. It is **project-aware** and follows the directory/project you're
- * in: visibility and behaviour are driven by the type of the project currently selected in the
- * drawer (falling back to the open file's project), detected by [ProjectRunner].
+ * The editor "Run" (play) button. It is **project-aware**: visibility and behaviour are driven by
+ * the type of the project the open file belongs to (see [ProjectRunner]).
  *
- *  - Shown for Python, Node, Rust, Go, static Web, and Fabric/Forge/Gradle projects — independently
- *    of which file (if any) is open, so a `.md`/`.txt` file in a runnable project still shows it.
- *  - Hidden for Android projects and for projects the editor can't identify.
+ *  - Shown for Python, Node, Rust, Go, static Web, Android, and Fabric/Forge/Gradle projects.
+ *  - Hidden only for projects the editor can't identify.
  *
  * Clicking it runs (or builds) the project from its own folder in the sandbox (in the background),
  * or opens the in-app HTML preview for static web projects.
@@ -39,10 +34,6 @@ import kotlinx.coroutines.launch
 @OptIn(DelicateCoroutinesApi::class)
 class RunCommand : EditorCommand() {
     override val id: String = "editor.run"
-
-    /** The project root the user is currently "in" — the drawer's selected project takes priority. */
-    private fun drawerProjectRoot(): FileObject? =
-        (commandContext.drawerViewModel.currentDrawerTab as? FileTreeTab)?.root
 
     override fun getLabel(): String =
         if (RunOutputState.isRunning) strings.stop.getString() else strings.run.getString()
@@ -56,22 +47,17 @@ class RunCommand : EditorCommand() {
 
         val editorTab = editorActionContext.editorTab
         val activity = editorActionContext.currentActivity
-        // Prefer the drawer's current project so Run targets the directory the user is in.
-        val projectRoot = drawerProjectRoot() ?: editorTab.projectRoot
         CommandProvider.SaveCommand.action(editorActionContext)
         DefaultScope.launch {
             Settings.runs += 1
-            ProjectRunner.run(activity = activity, projectRoot = projectRoot, file = editorTab.file)
+            ProjectRunner.run(activity = activity, projectRoot = editorTab.projectRoot, file = editorTab.file)
         }
     }
 
     override fun isSupported(editorNonActionContext: EditorNonActionContext): Boolean {
-        // Keep the (Stop) button available on any editor tab while a build is running.
+        // Keep the (Stop) button available on any editor tab while a build is running so it can be
+        // stopped from anywhere.
         if (RunOutputState.isRunning) return true
-        // Show whenever the directory/project selected in the drawer is runnable, regardless of the
-        // open file's type or project.
-        val drawerRoot = drawerProjectRoot()
-        if (drawerRoot is FileWrapper && ProjectRunner.canRun(drawerRoot.getAbsolutePath())) return true
         val tab = editorNonActionContext.editorTab
         val rootPath = ProjectRunner.resolveProjectRootPath(tab.projectRoot, tab.file)
         return ProjectRunner.canRun(rootPath)

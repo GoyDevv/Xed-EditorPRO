@@ -57,6 +57,7 @@ class RunService : Service() {
         val label = intent?.getStringExtra(EXTRA_LABEL) ?: "Build"
         val workingDir = intent?.getStringExtra(EXTRA_WORKDIR)
         val args = intent?.getStringArrayListExtra(EXTRA_ARGS) ?: arrayListOf()
+        val apkProjectDir = intent?.getStringExtra(EXTRA_APK_DIR)
 
         startForegroundCompat(buildNotification(label, "Starting…", ongoing = true))
         RunOutputState.setStopper { stopProcess() }
@@ -86,6 +87,10 @@ class RunService : Service() {
                 t2.join()
                 RunOutputState.onOutput(sb.toString())
                 RunOutputState.onFinished(exit)
+                // Android: install the freshly built APK on a successful build.
+                if (exit == 0 && apkProjectDir != null) {
+                    ApkInstaller.install(applicationContext, apkProjectDir)
+                }
                 showResultNotification(label, exit)
             } catch (e: Exception) {
                 synchronized(lock) { sb.appendLine("Error: ${e.message}") }
@@ -197,14 +202,22 @@ class RunService : Service() {
         private const val EXTRA_LABEL = "label"
         private const val EXTRA_WORKDIR = "workingDir"
         private const val EXTRA_ARGS = "args"
+        private const val EXTRA_APK_DIR = "apkProjectDir"
 
         /** Start a background build. [args] is the full sandbox command list for [ubuntuProcess]. */
-        fun start(context: Context, label: String, workingDir: String?, args: ArrayList<String>) {
+        fun start(
+            context: Context,
+            label: String,
+            workingDir: String?,
+            args: ArrayList<String>,
+            androidApkProjectDir: String? = null,
+        ) {
             val intent =
                 Intent(context, RunService::class.java).apply {
                     putExtra(EXTRA_LABEL, label)
                     putExtra(EXTRA_WORKDIR, workingDir)
                     putStringArrayListExtra(EXTRA_ARGS, args)
+                    putExtra(EXTRA_APK_DIR, androidApkProjectDir)
                 }
             ContextCompat.startForegroundService(context, intent)
         }

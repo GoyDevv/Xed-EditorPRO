@@ -22,9 +22,9 @@ import java.io.File
  *  - **Python / Node / Rust / Go** – runs the project from its own folder in the terminal sandbox.
  *  - **Fabric / Forge / generic Gradle** – checks the JDK and runs `./gradlew build`, surfacing any
  *    build errors in the terminal.
+ *  - **Android** – exports ANDROID_HOME, runs `./gradlew assembleDebug`, then installs the built APK.
  *  - **Static web** – opens the in-app HTML preview (the existing, working web runner).
- *  - **Android / Unknown** – not runnable; the button is hidden (Android needs the full SDK and a
- *    different flow, and unknown projects have no meaningful run command).
+ *  - **Unknown** – not runnable; the button is hidden (no meaningful run command).
  *
  * All terminal commands run with the project root as the working directory, so relative paths,
  * `requirements.txt`, `package.json`, `gradlew`, etc. resolve correctly.
@@ -35,13 +35,8 @@ object ProjectRunner {
     private const val CACHE_TTL_MS = 4_000L
     private val cache = HashMap<String, Pair<Long, DetectedProjectType>>()
 
-    /** Project types the run button supports. Android and Unknown are intentionally hidden. */
-    fun isRunnable(type: DetectedProjectType): Boolean =
-        when (type) {
-            DetectedProjectType.ANDROID,
-            DetectedProjectType.UNKNOWN -> false
-            else -> true
-        }
+    /** Project types the run button supports. Only genuinely unidentifiable projects are hidden. */
+    fun isRunnable(type: DetectedProjectType): Boolean = type != DetectedProjectType.UNKNOWN
 
     @Synchronized
     fun detect(projectRootPath: String): DetectedProjectType {
@@ -102,6 +97,9 @@ object ProjectRunner {
                 label = label,
                 workingDir = sandboxRoot,
                 args = arrayListOf("/bin/bash", "-l", scriptPath, type.name, sandboxRoot, sandboxFile),
+                // For Android, hand RunService the project's real path so it can locate and install
+                // the built APK once the build succeeds (the Android Studio "Run" experience).
+                androidApkProjectDir = if (type == DetectedProjectType.ANDROID) rootPath else null,
             )
         } else {
             // Sandbox isn't set up yet — fall back to the terminal so the rootfs can be downloaded
@@ -119,6 +117,32 @@ object ProjectRunner {
                     ),
             )
         }
+    }
+
+    /**
+     * Gradle dependency "sync" for Android (and other Gradle) projects — the one-time step that
+     * downloads dependencies and configures the build, mirroring Android Studio's Sync. Runs in the
+     * background like [run]; surfaced in the floating build view.
+     */
+    suspend fun sync(activity: Activity, projectRoot: FileObject?, file: FileObject) {
+        val rootPath = resolveProjectRootPath(projectRoot, file) ?: return
+        if (!File(rootPath).isDirectory) return
+        if (!isTerminalInstalled()) return
+
+        setupAssetFile("project_runner")
+        val sandboxRoot = toSandboxPath(rootPath)
+        val label = "Sync · ${File(rootPath).name}"
+        val scriptPath = localBinDir().child("project_runner").absolutePath
+
+        if (!RunOutputState.begin(label = label)) return
+        RunService.start(
+            context = activity,
+            label = label,
+            workingDir = sandboxRoot,
+            // "SYNC" pseudo-type triggers the gradle dependency sync path in project_runner.sh.
+            args = arrayListOf("/bin/bash", "-l", scriptPath, "SYNC", sandboxRoot, ""),
+            androidApkProjectDir = null,
+        )
     }
 
     /**

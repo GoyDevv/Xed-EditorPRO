@@ -98,6 +98,17 @@ class App : Application() {
             }
             Settings.migrated_show_all_files_toolbar = true
         }
+
+        // One-time: inject the Android "Gradle sync" button right after Run for existing users.
+        if (!Settings.migrated_sync_toolbar) {
+            val items = Settings.action_items.split("|").toMutableList()
+            if (!items.contains("editor.sync")) {
+                val runIdx = items.indexOf("editor.run")
+                if (runIdx >= 0) items.add(runIdx + 1, "editor.sync") else items.add("editor.sync")
+                Settings.action_items = items.joinToString("|")
+            }
+            Settings.migrated_sync_toolbar = true
+        }
         KeybindingsManager.loadKeybindings()
 
         val currentLocale = Locale.forLanguageTag(Settings.current_lang)

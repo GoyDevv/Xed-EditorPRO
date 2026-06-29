@@ -21,6 +21,7 @@ import com.rk.commands.editor.SelectWordCommand
 import com.rk.commands.editor.ShareCommand
 import com.rk.commands.editor.SortLinesAscendingCommand
 import com.rk.commands.editor.SortLinesDescendingCommand
+import com.rk.commands.editor.SyncCommand
 import com.rk.commands.editor.SyntaxHighlightingCommand
 import com.rk.commands.editor.ToggleReadOnlyCommand
 import com.rk.commands.editor.ToggleShowAllFilesCommand
@@ -67,6 +68,7 @@ object CommandProvider {
     lateinit var UndoCommand: UndoCommand
     lateinit var RedoCommand: RedoCommand
     lateinit var RunCommand: RunCommand
+    lateinit var SyncCommand: SyncCommand
     lateinit var MarkdownPreviewCommand: MarkdownPreviewCommand
     lateinit var DependenciesCommand: DependenciesCommand
     lateinit var ToggleReadOnlyCommand: ToggleReadOnlyCommand
@@ -109,6 +111,7 @@ object CommandProvider {
             registerBuiltin(UndoCommand()) { UndoCommand = it }
             registerBuiltin(RedoCommand()) { RedoCommand = it }
             registerBuiltin(RunCommand()) { RunCommand = it }
+            registerBuiltin(SyncCommand()) { SyncCommand = it }
             registerBuiltin(MarkdownPreviewCommand()) { MarkdownPreviewCommand = it }
             registerBuiltin(DependenciesCommand()) { DependenciesCommand = it }
             registerBuiltin(ToggleReadOnlyCommand()) { ToggleReadOnlyCommand = it }
