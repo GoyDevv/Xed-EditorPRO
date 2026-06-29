@@ -130,7 +130,24 @@ directory, send, sessions list, permission dialog). Non-streaming; in-memory ses
 
 ### ⬜ Phase 3 — Polish
 - Better Kiro-web-style chat styling + markdown rendering of assistant messages + code blocks with copy.
+  [4.1.8: assistant replies now render fenced ``` code blocks as monospace cards with a Copy button
+  (AiTab.AssistantContent); plain text otherwise. Full markdown (headings/lists/bold) still minimal.]
 - More tools (search/grep, apply-patch/diff, delete, move) + per-tool descriptions.
+  [4.1.6 + 4.1.7 done — full toolset listed above. 4.1.10: + fetch_url (web). REMAINING: multi-hunk apply-patch/diff.]
+- Task/todo tools (4.1.9): set_tasks + complete_task (AiTaskStore) let the agent build a plan and tick
+  it off; a "Tasks" panel in AiTab shows live progress. Auto-allowed (no permission prompt). System
+  prompt tells the model to use them for multi-step work.
+- Cancel/stop a running agent turn; retry; edit-and-resend.
+  [4.1.3 + 4.1.8: stop() now also cancels the in-flight OkHttp call (AiClient.cancel()) and ignores
+  the cancellation as an error. Retry/edit-resend still TODO.]
+- MCP support (optional) so external tool servers can be attached.   [deferred / optional]
+
+### Note on the "dedicated agent terminal"
+run_command runs each command as an independent process in the Linux sandbox (ShellUtils.runUbuntu),
+and AiAgentService shows a foreground notification updated with the current tool ("Read x", "Run: …")
+with a **Stop** action that cancels the whole turn (= "kill the terminal"). There is no single
+long-lived shell the AI keeps state in across commands; if that's wanted later, add an AiTerminal
+that holds one persistent ubuntuProcess and pipes run_command through it.
 - Cancel/stop a running agent turn; retry; edit-and-resend.   [stop DONE in 4.1.3 — AiViewModel.stop()
   cancels runJob + clears the permission gate; the send button becomes a Stop button while busy.
   (True in-flight network cancel of the OkHttp call is still TODO — currently the coroutine stops the

@@ -61,6 +61,7 @@ class AiViewModel : ViewModel() {
     fun stop() {
         runJob?.cancel()
         runJob = null
+        AiClient.cancel()
         permissionDeferred?.complete(false)
         pendingPermission = null
         busy = false
@@ -128,12 +129,26 @@ class AiViewModel : ViewModel() {
         val s = Session(id = System.currentTimeMillis().toString(), title = "New chat")
         sessions.add(0, s)
         currentSessionId = s.id
+        AiTaskStore.clear()
         persist()
     }
 
     fun selectSession(id: String) {
         currentSessionId = id
     }
+
+    /** Clears the current chat's messages (used by the /clear slash command). */
+    fun clearCurrent() {
+        current?.messages?.clear()
+        current?.totalTokens = 0
+        persist()
+    }
+
+    /** The most recent assistant reply text (used by /copy). */
+    fun lastAssistant(): String = current?.messages?.lastOrNull { it.role == "assistant" }?.content ?: ""
+
+    /** The most recent user message text (used by /retry). */
+    fun lastUserText(): String = current?.messages?.lastOrNull { it.role == "user" }?.content ?: ""
 
     private fun ensureSession(): Session = current ?: Session(id = System.currentTimeMillis().toString(), title = "New chat").also {
         sessions.add(0, it)
@@ -148,6 +163,8 @@ class AiViewModel : ViewModel() {
                     "You can read and write files and run shell commands in the user's Linux sandbox using the provided tools. " +
                     "The current project directory is: $workingDir. " +
                     "Prefer using tools to inspect the project before answering. Keep responses concise. " +
+                    "For multi-step work, call set_tasks first with your plan, then mark each done with " +
+                    "complete_task as you finish it. " +
                     "Explain what you're about to do before running commands, and avoid destructive actions unless asked.",
         )
 
@@ -174,7 +191,8 @@ class AiViewModel : ViewModel() {
         com.rk.utils.application?.let { AiAgentService.start(it, "Working · $model") }
         runJob =
             viewModelScope.launch {
-                runCatching { runAgentLoop(session, key, workingDir) }.onFailure { error = it.message }
+                runCatching { runAgentLoop(session, key, workingDir) }
+                    .onFailure { if (it !is kotlinx.coroutines.CancellationException) error = it.message }
                 busy = false
                 com.rk.utils.application?.let { AiAgentService.stop(it) }
                 persist()
@@ -202,6 +220,7 @@ class AiViewModel : ViewModel() {
 
             for (call in result.message.toolCalls) {
                 val allowed = askPermission(call)
+                if (allowed) com.rk.utils.application?.let { AiAgentService.start(it, AiTools.describe(call)) }
                 val output = if (allowed) AiTools.execute(call, workingDir) else "Permission denied by the user."
                 session.messages.add(
                     AiMessage(role = "tool", content = output, toolCallId = call.id, ui = "tool_result")
@@ -210,8 +229,12 @@ class AiViewModel : ViewModel() {
         }
     }
 
-    private suspend fun askPermission(call: AiToolCall): Boolean =
-        when (AiPrefs.getPolicy(call.name)) {
+    private suspend fun askPermission(call: AiToolCall): Boolean {
+        // Task-planning and read-only tools never need a prompt.
+        if (call.name in setOf("set_tasks", "complete_task", "read_file", "list_dir", "search_text", "glob_files")) {
+            return true
+        }
+        return when (AiPrefs.getPolicy(call.name)) {
             AiPrefs.Policy.ALWAYS -> true
             AiPrefs.Policy.NEVER -> false
             AiPrefs.Policy.ASK -> {
@@ -224,6 +247,7 @@ class AiViewModel : ViewModel() {
                 ok
             }
         }
+    }
 
     /** Called by the permission dialog. [remember] persists the choice for this tool. */
     fun resolvePermission(allow: Boolean, remember: Boolean) {

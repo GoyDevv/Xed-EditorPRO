@@ -46,12 +46,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.blankj.utilcode.util.ClipboardUtils
 import com.rk.activities.main.MainActivity
 import com.rk.components.isDrawerExpanded
 import com.rk.drawer.DrawerTab
 import com.rk.file.sandboxHomeDir
 import com.rk.filetree.FileTreeTab
 import com.rk.resources.drawables
+import com.rk.utils.toast
 import kotlinx.coroutines.launch
 
 /** The AI Agent service tab (sits above Git in the drawer rail). */
@@ -112,6 +114,26 @@ private fun AiScreen(modifier: Modifier) {
                     }
                     IconButton(onClick = { vm.newSession() }) {
                         Icon(painterResource(drawables.add), contentDescription = "New chat")
+                    }
+                }
+
+                if (AiTaskStore.tasks.isNotEmpty()) {
+                    Surface(
+                        tonalElevation = 1.dp,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
+                            Text("Tasks", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            AiTaskStore.tasks.forEach { t ->
+                                Text(
+                                    text = (if (t.done) "✓ " else "• ") + t.text,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color =
+                                        if (t.done) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurface,
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -212,7 +234,7 @@ private fun MessageItem(msg: AiMessage) {
         else -> // assistant
         Column(modifier = Modifier.fillMaxWidth()) {
             if (msg.content.isNotBlank()) {
-                SelectionContainer { Text(msg.content) }
+                AssistantContent(msg.content)
             }
             msg.toolCalls.forEach { call ->
                 Spacer(Modifier.size(4.dp))
@@ -238,12 +260,118 @@ private fun MessageItem(msg: AiMessage) {
 }
 
 @Composable
+private fun AssistantContent(content: String) {
+    val parts = content.split("```")
+    Column(modifier = Modifier.fillMaxWidth()) {
+        parts.forEachIndexed { i, part ->
+            if (part.isBlank()) return@forEachIndexed
+            if (i % 2 == 1) {
+                // Code block; drop an optional leading language tag line.
+                val body = if (part.contains('\n')) part.substringAfter('\n') else part
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            TextButton(
+                                onClick = {
+                                    ClipboardUtils.copyText("Code", body.trimEnd())
+                                    toast("Copied")
+                                }
+                            ) {
+                                Icon(painterResource(drawables.copy), contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Copy")
+                            }
+                        }
+                        SelectionContainer {
+                            Text(
+                                text = body.trimEnd(),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp).heightIn(max = 300.dp),
+                                fontFamily = FontFamily.Monospace,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        Spacer(Modifier.size(6.dp))
+                    }
+                }
+            } else {
+                SelectionContainer { Text(part.trim()) }
+            }
+        }
+    }
+}
+
+@Composable
 private fun Composer(vm: AiViewModel, workingDir: String) {
     var text by remember { mutableStateOf("") }
     var modelMenu by remember { mutableStateOf(false) }
+    var showHelp by remember { mutableStateOf(false) }
+    val slashCommands =
+        remember {
+            listOf(
+                "/new" to "Start a new chat",
+                "/clear" to "Clear this chat",
+                "/model" to "Choose the model",
+                "/stop" to "Stop the running turn",
+                "/copy" to "Copy the last reply",
+                "/retry" to "Resend the last message",
+                "/help" to "Show all commands",
+            )
+        }
+    val runSlash: (String) -> Unit = { raw ->
+        when (raw.trim().substringBefore(' ').lowercase()) {
+            "/new" -> vm.newSession()
+            "/clear" -> vm.clearCurrent()
+            "/model" -> {
+                modelMenu = true
+                if (vm.models.isEmpty()) vm.refreshModels()
+            }
+            "/stop" -> vm.stop()
+            "/copy" -> {
+                ClipboardUtils.copyText("AI", vm.lastAssistant())
+                toast("Copied")
+            }
+            "/retry" -> {
+                val t = vm.lastUserText()
+                if (t.isNotBlank()) vm.send(t, workingDir) else toast("Nothing to retry")
+            }
+            "/help" -> showHelp = true
+            else -> toast("Unknown command")
+        }
+    }
 
     Surface(tonalElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
+            // Slash-command suggestions (shown while typing "/…").
+            if (text.startsWith("/")) {
+                val q = text.trim().lowercase()
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    slashCommands
+                        .filter { it.first.startsWith(q) || q == "/" }
+                        .forEach { (name, desc) ->
+                            TextButton(
+                                onClick = {
+                                    text = ""
+                                    runSlash(name)
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(name, fontWeight = FontWeight.SemiBold)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        desc,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                }
+            }
             // Directory + model + %used row.
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(
@@ -305,13 +433,33 @@ private fun Composer(vm: AiViewModel, workingDir: String) {
                     IconButton(
                         enabled = text.isNotBlank(),
                         onClick = {
-                            vm.send(text, workingDir)
+                            val t = text.trim()
                             text = ""
+                            if (t.startsWith("/")) runSlash(t) else vm.send(t, workingDir)
                         },
                     ) {
                         Icon(painterResource(drawables.send), contentDescription = "Send")
                     }
                 }
+            }
+
+            if (showHelp) {
+                AlertDialog(
+                    onDismissRequest = { showHelp = false },
+                    title = { Text("Chat commands") },
+                    text = {
+                        Column {
+                            slashCommands.forEach { (name, desc) ->
+                                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(name, fontWeight = FontWeight.SemiBold)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(desc, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = { TextButton(onClick = { showHelp = false }) { Text("Close") } },
+                )
             }
         }
     }

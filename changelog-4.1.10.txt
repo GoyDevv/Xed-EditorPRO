@@ -1,0 +1,30 @@
+Xed-Editor PRO — Changelog
+Version 4.1.10 (versionCode 117)
+
+AI Agent — web fetch tool.
+
+>>> BUILD NOTE: does NOT build locally (no JDK 21 / SDK 37 / NDK in our dev env). Verified ONLY by
+>>> GitHub Actions CI.
+
+================================================================================
+NEW in 4.1.10
+================================================================================
+- core/main/src/main/java/com/rk/ai/AiTools.kt (edited) — new tool fetch_url(url): fetches an
+  http(s) URL (OkHttp, on Dispatchers.IO) and returns up to 20k chars (for docs/references). Added to
+  names, schemas, describe, and execute. Permission-gated like other side-effecting tools (uses the
+  INTERNET permission already declared).
+
+- app/build.gradle.kts: 4.1.9 -> 4.1.10 (versionCode 116 -> 117).
+
+================================================================================
+Full agent toolset (12)
+================================================================================
+read_file, write_file, edit_file, create_dir, list_dir, glob_files, search_text, run_command,
+delete_file, move_file, set_tasks, complete_task, fetch_url.
+
+AI timeline: 4.1.0 engine+UI · 4.1.1 persistence · 4.1.2 streaming · 4.1.3 stop · 4.1.4 bg notif ·
+4.1.5 settings · 4.1.6/4.1.7 tools + slash /commands · 4.1.8 true cancel + per-command notif + code
+rendering · 4.1.9 task/todo tools · 4.1.10 web fetch (this file). See phases.md.
+
+REMAINING (optional, phases.md): persistent shell across commands; multi-hunk apply-patch;
+retry/edit-resend; richer markdown (headings/lists/bold); MCP.

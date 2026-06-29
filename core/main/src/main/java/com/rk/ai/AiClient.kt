@@ -29,6 +29,13 @@ object AiClient {
 
     private val JSON = "application/json; charset=utf-8".toMediaType()
 
+    @Volatile private var currentCall: okhttp3.Call? = null
+
+    /** Cancels the in-flight chat request (used by stop). */
+    fun cancel() {
+        runCatching { currentCall?.cancel() }
+    }
+
     data class ChatResult(val message: AiMessage, val totalTokens: Int)
 
     /** Verifies the key and lists model ids via GET {base}/models. Throws on failure. */
@@ -114,7 +121,10 @@ object AiClient {
                     .addHeader("Authorization", "Bearer $key")
                     .post(payload.toString().toRequestBody(JSON))
                     .build()
-            client.newCall(req).execute().use { resp ->
+            val call = client.newCall(req)
+            currentCall = call
+            try {
+            call.execute().use { resp ->
                 if (!resp.isSuccessful) {
                     val b = resp.body.string()
                     throw IOException("Chat failed (${resp.code}): ${b.take(600)}")
@@ -166,6 +176,9 @@ object AiClient {
                         }
                         .filter { it.name.isNotBlank() }
                 ChatResult(AiMessage(role = "assistant", content = content.toString(), toolCalls = toolCalls), total)
+            }
+            } finally {
+                currentCall = null
             }
         }
 

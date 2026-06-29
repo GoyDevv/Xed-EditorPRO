@@ -1,0 +1,40 @@
+Xed-Editor PRO — Changelog
+Version 4.1.8 (versionCode 115)
+
+AI Agent — true cancel, per-command notification, code-block rendering.
+
+>>> BUILD NOTE: does NOT build locally (no JDK 21 / SDK 37 / NDK in our dev env). Verified ONLY by
+>>> GitHub Actions CI.
+
+================================================================================
+NEW in 4.1.8
+================================================================================
+- core/main/src/main/java/com/rk/ai/AiClient.kt (edited)
+  • Holds the in-flight okhttp3.Call (currentCall) and adds cancel(); chatStream wraps execute() in
+    try/finally so Stop actually aborts the streaming network request mid-flight.
+- core/main/src/main/java/com/rk/ai/AiViewModel.kt (edited)
+  • stop() now calls AiClient.cancel() too; the run job ignores CancellationException (Stop no longer
+    shows a spurious error).
+  • While a turn runs, the agent notification is updated per tool with AiTools.describe(call)
+    (e.g. "Run: npm test", "Edit src/Main.kt") via AiAgentService.start().
+- core/main/src/main/java/com/rk/ai/AiTab.kt (edited)
+  • AssistantContent: assistant replies now render fenced ``` code blocks as monospace cards with a
+    Copy button (drops the optional language tag line); normal text otherwise.
+- app/build.gradle.kts: 4.1.7 -> 4.1.8 (versionCode 114 -> 115).
+- phases.md: Phase 3 items updated; added a note on the agent-terminal design.
+
+================================================================================
+AI feature timeline (full detail in phases.md)
+================================================================================
+4.1.0 engine+UI · 4.1.1 persistence · 4.1.2 streaming · 4.1.3 stop/cancel · 4.1.4 bg notification ·
+4.1.5 settings screen · 4.1.6 tools (search/delete/move) · 4.1.7 edit/glob/create + slash /commands ·
+4.1.8 true network cancel + per-command notification + code-block rendering (this file).
+
+================================================================================
+Essentially complete. REMAINING (optional / future, see phases.md)
+================================================================================
+- Persistent single shell the AI keeps state in across commands (current design runs each command
+  independently in the sandbox; Stop kills the turn). Add an AiTerminal holding one ubuntuProcess if
+  desired.
+- Multi-hunk apply-patch/diff tool; retry / edit-and-resend; richer markdown (headings/lists/bold);
+  optional MCP (external tool servers).
