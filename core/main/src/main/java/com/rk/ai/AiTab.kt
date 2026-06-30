@@ -92,6 +92,7 @@ private fun AiScreen(modifier: Modifier) {
 
     var showAddKey by remember { mutableStateOf(false) }
     var showSessions by remember { mutableStateOf(false) }
+    var showKiroSetup by remember { mutableStateOf(false) }
 
     // Auto-maximize the drawer for the chat, and ensure a session exists.
     LaunchedEffect(Unit) {
@@ -102,7 +103,14 @@ private fun AiScreen(modifier: Modifier) {
 
     Box(modifier = modifier.fillMaxSize()) {
         if (!vm.isConfigured()) {
-            SetupPrompt(onAdd = { showAddKey = true })
+            SetupPrompt(
+                onAdd = { showAddKey = true },
+                onKiroSetup = {
+                    vm.selectProvider(AiProviders.KIRO.id)
+                    KiroSetup.reset()
+                    showKiroSetup = true
+                },
+            )
         } else {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Top bar: sessions + title + new chat.
@@ -192,13 +200,19 @@ private fun AiScreen(modifier: Modifier) {
         }
     }
 
-    if (showAddKey) AddKeyDialog(vm = vm, onDismiss = { showAddKey = false })
+    if (showAddKey) AddKeyDialog(vm = vm, onDismiss = { showAddKey = false }, onAutoSetup = {
+        showAddKey = false
+        vm.selectProvider(AiProviders.KIRO.id)
+        KiroSetup.reset()
+        showKiroSetup = true
+    })
     if (showSessions) SessionsDialog(vm = vm, onDismiss = { showSessions = false })
+    if (showKiroSetup) KiroSetupDialog(vm = vm, onDismiss = { showKiroSetup = false })
     vm.pendingPermission?.let { req -> PermissionDialog(req = req, vm = vm) }
 }
 
 @Composable
-private fun SetupPrompt(onAdd: () -> Unit) {
+private fun SetupPrompt(onAdd: () -> Unit, onKiroSetup: () -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
@@ -214,6 +228,8 @@ private fun SetupPrompt(onAdd: () -> Unit) {
         )
         Spacer(Modifier.size(16.dp))
         TextButton(onClick = onAdd) { Text("Add API key") }
+        Spacer(Modifier.size(4.dp))
+        TextButton(onClick = onKiroSetup) { Text("Set up Kiro automatically") }
     }
 }
 
@@ -688,7 +704,7 @@ private fun SessionsDialog(vm: AiViewModel, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun AddKeyDialog(vm: AiViewModel, onDismiss: () -> Unit) {
+private fun AddKeyDialog(vm: AiViewModel, onDismiss: () -> Unit, onAutoSetup: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     var providerId by remember { mutableStateOf(vm.providerId) }
     var providerMenu by remember { mutableStateOf(false) }
@@ -749,6 +765,7 @@ private fun AddKeyDialog(vm: AiViewModel, onDismiss: () -> Unit) {
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    TextButton(onClick = onAutoSetup) { Text("Automatic setup (install + sign in)") }
                 }
                 status?.let {
                     Spacer(Modifier.size(8.dp))

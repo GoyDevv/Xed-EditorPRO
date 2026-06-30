@@ -224,3 +224,22 @@ URL mode still works as a fallback when a Base URL is set).
 the ability to build/run in the dev env or test against a real Kiro account — it needs on-device
 validation (the exact event-type names / toolUseEvent fields / eventstream framing may need a fix or
 two once real responses can be inspected). The gateway URL mode is the guaranteed fallback.
+
+
+---
+
+## 7. 4.1.14 — Automatic Kiro setup (install + login)
+
+`KiroSetup.kt` + `KiroSetupUi.kt` add a one-tap Kiro onboarding flow (entry points: "Set up Kiro
+automatically" on the setup screen, and a button in the provider dialog):
+- **Install**: runs `curl -fsSL https://cli.kiro.dev/install | bash` in the sandbox (wget / apt-get
+  curl fallback) via `ShellUtils.runUbuntuStreaming` (new — streams output live), then **resolves the
+  binary path** (fixing "command not found" / PATH), appends it to `~/.bashrc`, and saves
+  `AiPrefs.kiroCliPath`.
+- **Login**: runs `kiro-cli login` (browser device flow), streams output, captures the sign-in URL
+  (Open browser / Copy link), then re-discovers creds via `KiroAuth`. Token login is the fallback.
+- UI: step checklist, progress bar, small scrollable live log, copyable error + "Copy log".
+
+Known limit: the installed kiro-cli must match the sandbox CPU arch; on ARM, if the installer is
+x86_64-only, use token login (paste a refresh token from a desktop Kiro login — no local CLI needed).
+Needs on-device testing.

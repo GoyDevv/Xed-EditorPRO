@@ -96,4 +96,12 @@ object AiPrefs {
     var mcpServersRaw: String
         get() = Preference.getString(MCP_SERVERS, "")
         set(value) = Preference.setString(MCP_SERVERS, value)
+
+    // --- Kiro CLI -----------------------------------------------------------------------------
+    private const val KIRO_CLI_PATH = "ai_kiro_cli_path"
+
+    /** Resolved path to the kiro-cli binary inside the sandbox (set by automatic setup). */
+    var kiroCliPath: String
+        get() = Preference.getString(KIRO_CLI_PATH, "")
+        set(value) = Preference.setString(KIRO_CLI_PATH, value.trim())
 }
