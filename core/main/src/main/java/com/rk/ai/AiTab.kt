@@ -416,7 +416,7 @@ private fun MarkdownText(text: String) {
     }
 }
 
-/** Parse inline markdown spans: **bold**/__bold__, *italic*, `code`. */
+// Parse inline markdown spans: bold, italic, and inline code.
 private fun parseInline(s: String, codeBg: Color): AnnotatedString = buildAnnotatedString {
     var i = 0
     while (i < s.length) {
