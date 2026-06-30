@@ -25,8 +25,10 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -95,11 +97,11 @@ private fun AiScreen(modifier: Modifier) {
     LaunchedEffect(Unit) {
         isDrawerExpanded = true
         if (vm.sessions.isEmpty()) vm.newSession()
-        if (AiPrefs.hasKey(vm.providerId) && vm.models.isEmpty()) vm.refreshModels()
+        if (vm.isConfigured() && vm.models.isEmpty()) vm.refreshModels()
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        if (!AiPrefs.hasKey(vm.providerId)) {
+        if (!vm.isConfigured()) {
             SetupPrompt(onAdd = { showAddKey = true })
         } else {
             Column(modifier = Modifier.fillMaxSize()) {
@@ -520,14 +522,25 @@ private fun Composer(vm: AiViewModel, workingDir: String) {
             }
             // Directory + model + %used row.
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "📁 " + workingDir.substringAfterLast('/'),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f),
-                )
+                ) {
+                    Icon(
+                        painterResource(drawables.outline_folder),
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = workingDir.substringAfterLast('/'),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Box {
                     TextButton(onClick = { modelMenu = true; if (vm.models.isEmpty()) vm.refreshModels() }) {
                         Text(
@@ -561,6 +574,7 @@ private fun Composer(vm: AiViewModel, workingDir: String) {
                 )
             }
 
+            Spacer(Modifier.size(6.dp))
             Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
                     value = text,
@@ -569,14 +583,22 @@ private fun Composer(vm: AiViewModel, workingDir: String) {
                     placeholder = { Text("Ask the agent…") },
                     enabled = !vm.busy,
                     maxLines = 6,
+                    shape = RoundedCornerShape(24.dp),
                 )
                 Spacer(Modifier.width(8.dp))
                 if (vm.busy) {
-                    IconButton(onClick = { vm.stop() }) {
+                    FilledIconButton(
+                        onClick = { vm.stop() },
+                        colors =
+                            IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                            ),
+                    ) {
                         Icon(painterResource(drawables.stop), contentDescription = "Stop")
                     }
                 } else {
-                    IconButton(
+                    FilledIconButton(
                         enabled = text.isNotBlank(),
                         onClick = {
                             val t = text.trim()
@@ -714,10 +736,20 @@ private fun AddKeyDialog(vm: AiViewModel, onDismiss: () -> Unit) {
                 OutlinedTextField(
                     value = key,
                     onValueChange = { key = it },
-                    label = { Text("API key") },
+                    label = { Text(if (provider.id == AiProviders.KIRO.id) "Refresh token (optional)" else "API key") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                if (provider.id == AiProviders.KIRO.id) {
+                    Spacer(Modifier.size(6.dp))
+                    Text(
+                        "Kiro auto-login: leave blank to use your kiro-cli / Kiro IDE login automatically " +
+                            "(tap Verify to detect). If you're not logged in, run \"kiro-cli login\" in the terminal, " +
+                            "or paste a refresh token here. Set a Base URL only if you run an external gateway.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 status?.let {
                     Spacer(Modifier.size(8.dp))
                     Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -730,7 +762,7 @@ private fun AddKeyDialog(vm: AiViewModel, onDismiss: () -> Unit) {
         },
         confirmButton = {
             TextButton(
-                enabled = !verifying && key.isNotBlank(),
+                enabled = !verifying && (key.isNotBlank() || provider.id == AiProviders.KIRO.id),
                 onClick = {
                     verifying = true
                     status = null

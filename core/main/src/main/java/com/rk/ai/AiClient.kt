@@ -34,6 +34,7 @@ object AiClient {
     /** Cancels the in-flight chat request (used by stop). */
     fun cancel() {
         runCatching { currentCall?.cancel() }
+        runCatching { KiroClient.cancel() }
     }
 
     data class ChatResult(val message: AiMessage, val totalTokens: Int)
@@ -41,6 +42,9 @@ object AiClient {
     /** Verifies the key and lists model ids via GET {base}/models. Throws on failure. */
     suspend fun listModels(provider: AiProvider, key: String): List<String> =
         withContext(Dispatchers.IO) {
+            if (provider.id == AiProviders.KIRO.id && AiPrefs.getBaseUrl(provider.id).isBlank()) {
+                return@withContext KiroClient.verify()
+            }
             val req =
                 Request.Builder()
                     .url("${AiPrefs.baseUrl(provider).trimEnd('/')}/models")
@@ -104,6 +108,10 @@ object AiClient {
         onDelta: (String) -> Unit,
     ): ChatResult =
         withContext(Dispatchers.IO) {
+            // Kiro native mode: talk to AWS CodeWhisperer directly (no gateway) when no base URL is set.
+            if (provider.id == AiProviders.KIRO.id && AiPrefs.getBaseUrl(provider.id).isBlank()) {
+                return@withContext KiroClient.chatStream(model, messages, tools, onDelta)
+            }
             val payload =
                 JSONObject().apply {
                     put("model", model)

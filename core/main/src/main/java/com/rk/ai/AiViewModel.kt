@@ -90,6 +90,14 @@ class AiViewModel : ViewModel() {
     val provider: AiProvider
         get() = AiProviders.byId(providerId)
 
+    /** Kiro native mode: Kiro selected and no gateway base URL configured. */
+    fun isKiroNative(): Boolean =
+        providerId == AiProviders.KIRO.id && AiPrefs.getBaseUrl(providerId).isBlank()
+
+    /** Whether the current provider is ready to use (has a key, or Kiro is logged in / discoverable). */
+    fun isConfigured(): Boolean =
+        AiPrefs.hasKey(providerId) || (isKiroNative() && KiroAuth.hasDiscoverableCreds())
+
     /** Session context usage as a percentage of the model's context window. */
     val percentUsed: Int
         get() {
@@ -112,7 +120,7 @@ class AiViewModel : ViewModel() {
 
     fun refreshModels() {
         val key = AiPrefs.getKey(providerId)
-        if (key.isBlank()) return
+        if (key.isBlank() && !isKiroNative()) return
         loadingModels = true
         viewModelScope.launch(Dispatchers.IO) {
             runCatching { AiClient.listModels(provider, key) }
@@ -192,7 +200,7 @@ class AiViewModel : ViewModel() {
     fun send(text: String, workingDir: String) {
         if (busy || text.isBlank()) return
         val key = AiPrefs.getKey(providerId)
-        if (key.isBlank()) {
+        if (key.isBlank() && !isKiroNative()) {
             error = "No API key set for ${provider.label}."
             return
         }

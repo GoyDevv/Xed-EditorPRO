@@ -199,3 +199,28 @@ glob_files, search_text, run_command, delete_file, move_file, set_tasks, complet
 
 Note on the earlier "true in-flight OkHttp cancel" caveat: that was completed in 4.1.8
 (`AiClient.cancel()` aborts the streaming call; `stop()` calls it).
+
+
+---
+
+## 6. 4.1.13 — Native Kiro integration + chatbox polish
+
+The Kiro provider now works **natively, with automatic login, and no external gateway** (the gateway
+URL mode still works as a fallback when a Base URL is set).
+
+- **KiroAuth.kt** — auto-discovers Kiro credentials from the Linux sandbox (kiro-cli/amazon-q SQLite
+  `auth_kv`, Kiro IDE `~/.aws/sso/cache/*.json`, or a pasted refresh token) and refreshes the access
+  token (Kiro Desktop `…auth.desktop.kiro.dev/refreshToken` and AWS SSO OIDC `oidc.{region}…/token`).
+- **KiroClient.kt** — POSTs `codewhisperer.{region}.amazonaws.com/generateAssistantResponse` with the
+  `conversationState` request schema and decodes the binary `vnd.amazon.eventstream` response into
+  streamed text + tool calls. Protocol ported from kiro-gateway (jwadow/kiro-gateway, AGPL-3.0).
+- **AiClient** routes Kiro to KiroClient when no Base URL is set (native), else to the OpenAI HTTP
+  path (gateway). **AiViewModel.isKiroNative()/isConfigured()** open the chat once a login is found,
+  with no key required.
+- Chatbox: the "📁" emoji is replaced by a folder icon, the input is rounded, and Send/Stop are
+  filled circular buttons.
+
+⚠️ The native Kiro client reimplements Kiro's **undocumented binary protocol** and was written without
+the ability to build/run in the dev env or test against a real Kiro account — it needs on-device
+validation (the exact event-type names / toolUseEvent fields / eventstream framing may need a fix or
+two once real responses can be inspected). The gateway URL mode is the guaranteed fallback.

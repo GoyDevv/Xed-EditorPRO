@@ -1,0 +1,53 @@
+Xed-Editor PRO — Changelog
+Version 4.1.13 (versionCode 120)
+
+AI Agent — native Kiro integration (automatic login, no external gateway) + chatbox UI polish.
+
+>>> BUILD NOTE: does NOT build locally (JDK 17 here, project needs JDK 21 + Android SDK/NDK). Verified
+>>> ONLY by GitHub Actions CI. The native Kiro protocol below is a from-scratch reimplementation of
+>>> Kiro's undocumented binary AWS CodeWhisperer protocol and needs ON-DEVICE testing; the manual
+>>> gateway base-URL mode remains as a guaranteed fallback.
+
+================================================================================
+NEW in 4.1.13
+================================================================================
+
+1) Native Kiro — automatic login + direct connection (no separate gateway process)
+   - core/main/.../ai/KiroAuth.kt (new): "automatic logon". Auto-discovers Kiro credentials from the
+     Linux sandbox where kiro-cli runs:
+       • kiro-cli / amazon-q SQLite DB (~/.local/share/{kiro-cli,amazon-q}/data.sqlite3, auth_kv table)
+       • Kiro IDE JSON cache (~/.aws/sso/cache/kiro-auth-token.json, incl. Enterprise clientIdHash)
+       • or a refresh token pasted in settings.
+     Refreshes the access token automatically — Kiro Desktop (prod.{region}.auth.desktop.kiro.dev/
+     refreshToken) and AWS SSO OIDC (oidc.{region}.amazonaws.com/token).
+   - core/main/.../ai/KiroClient.kt (new): talks directly to AWS CodeWhisperer
+     (POST https://codewhisperer.{region}.amazonaws.com/generateAssistantResponse) with the access
+     token, builds Kiro's `conversationState` request from the agent's messages + tools, and decodes
+     the binary application/vnd.amazon.eventstream response into streamed text + tool calls.
+   - core/main/.../ai/AiClient.kt: chatStream()/listModels() route to KiroClient when the Kiro provider
+     is selected and NO base URL is set (native mode); a base URL switches to gateway mode. cancel()
+     also aborts an in-flight Kiro request.
+   - core/main/.../ai/AiViewModel.kt: isKiroNative()/isConfigured(); the chat opens for Kiro as soon as
+     a login is discovered (no key required); send()/refreshModels() relax the key requirement for Kiro.
+   - core/main/.../ai/AiTab.kt: setup gating uses isConfigured(); AddKeyDialog explains Kiro auto-login
+     (leave key blank to auto-detect; run "kiro-cli login" in the terminal if not logged in).
+   Protocol ported from the open-source kiro-gateway (jwadow/kiro-gateway, AGPL-3.0).
+
+2) Chatbox UI polish
+   - core/main/.../ai/AiTab.kt: replaced the "📁" folder EMOJI with a proper folder icon
+     (drawables.outline_folder) in the composer's directory chip.
+   - Rounded input field (24dp) and filled circular Send / Stop buttons (Stop uses error colors).
+
+- app/build.gradle.kts: 4.1.12 -> 4.1.13 (versionCode 119 -> 120).
+- phases.md: native Kiro section added.
+
+================================================================================
+How native Kiro works (user view)
+================================================================================
+1. Settings → App → AI Agent ON.  2. AI tab → settings → Provider → Kiro (gateway).  3. Leave the
+key/base-URL blank and tap "Verify & save" — the app detects your kiro-cli / Kiro IDE login and
+connects. If you're not logged in, run `kiro-cli login` in the built-in terminal, then verify.
+To use an external gateway instead, set the Base URL (…/v1) and it switches to gateway mode.
+
+AI timeline: 4.1.0 engine … 4.1.12 on/off + Kiro gateway + persistent terminal + apply_patch +
+edit/resend + markdown + MCP · 4.1.13 native Kiro (auto-login) + chatbox polish (this file).
