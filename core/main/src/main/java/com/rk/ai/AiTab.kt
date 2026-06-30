@@ -2,6 +2,7 @@ package com.rk.ai
 
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,9 +41,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -61,6 +67,9 @@ class AiTab : DrawerTab() {
     override fun getName(): String = "AI"
 
     override fun getIcon(): com.rk.icons.Icon = com.rk.icons.Icon.ResourceIcon(drawables.bolt)
+
+    /** Hidden when the user turns the AI Agent feature off in Settings → App. */
+    override fun isSupported(): Boolean = com.rk.settings.app.InbuiltFeatures.ai.state.value
 
     @Composable
     override fun Content(modifier: Modifier) {
@@ -137,7 +146,35 @@ private fun AiScreen(modifier: Modifier) {
                     }
                 }
 
-                MessagesList(vm = vm, modifier = Modifier.weight(1f).fillMaxWidth())
+                if (AiTerminal.isAlive) {
+                    Surface(
+                        tonalElevation = 1.dp,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(start = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                painterResource(drawables.terminal),
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = AiTerminal.currentCommand?.let { "Terminal · $it" } ?: "Agent terminal running",
+                                style = MaterialTheme.typography.labelSmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
+                            TextButton(onClick = { AiTerminal.kill() }) { Text("Kill") }
+                        }
+                    }
+                }
+
+                MessagesList(vm = vm, workingDir = workingDir, modifier = Modifier.weight(1f).fillMaxWidth())
 
                 vm.error?.let {
                     Text(
@@ -179,9 +216,10 @@ private fun SetupPrompt(onAdd: () -> Unit) {
 }
 
 @Composable
-private fun MessagesList(vm: AiViewModel, modifier: Modifier) {
+private fun MessagesList(vm: AiViewModel, workingDir: String, modifier: Modifier) {
     val listState = rememberLazyListState()
     val messages = vm.current?.messages ?: return
+    var editing by remember { mutableStateOf<AiMessage?>(null) }
     LaunchedEffect(messages.size, vm.busy) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
     }
@@ -191,7 +229,7 @@ private fun MessagesList(vm: AiViewModel, modifier: Modifier) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         items(items = messages.filter { it.role != "system" }, key = { System.identityHashCode(it) }) { msg ->
-            MessageItem(msg)
+            MessageItem(msg, onEditUser = { if (!vm.busy) editing = it })
         }
         if (vm.busy) {
             item {
@@ -203,16 +241,43 @@ private fun MessagesList(vm: AiViewModel, modifier: Modifier) {
             }
         }
     }
+
+    editing?.let { msg ->
+        var draft by remember(msg) { mutableStateOf(msg.content) }
+        AlertDialog(
+            onDismissRequest = { editing = null },
+            title = { Text("Edit & resend") },
+            text = {
+                OutlinedTextField(
+                    value = draft,
+                    onValueChange = { draft = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 8,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = draft.isNotBlank(),
+                    onClick = {
+                        val m = msg
+                        editing = null
+                        vm.editAndResend(m, draft.trim(), workingDir)
+                    },
+                ) { Text("Resend") }
+            },
+            dismissButton = { TextButton(onClick = { editing = null }) { Text("Cancel") } },
+        )
+    }
 }
 
 @Composable
-private fun MessageItem(msg: AiMessage) {
+private fun MessageItem(msg: AiMessage, onEditUser: (AiMessage) -> Unit = {}) {
     when (msg.role) {
         "user" ->
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                    modifier = Modifier.fillMaxWidth(0.85f),
+                    modifier = Modifier.fillMaxWidth(0.85f).clickable { onEditUser(msg) },
                 ) {
                     Text(msg.content, modifier = Modifier.padding(10.dp))
                 }
@@ -298,8 +363,89 @@ private fun AssistantContent(content: String) {
                     }
                 }
             } else {
-                SelectionContainer { Text(part.trim()) }
+                MarkdownText(part.trim())
             }
+        }
+    }
+}
+
+/** Lightweight markdown renderer (headings, bold/italic, inline code, bullet & numbered lists). */
+@Composable
+private fun MarkdownText(text: String) {
+    val codeBg = MaterialTheme.colorScheme.surfaceContainerHighest
+    Column(modifier = Modifier.fillMaxWidth()) {
+        text.split("\n").forEach { raw ->
+            val line = raw.trimEnd()
+            when {
+                line.isBlank() -> Spacer(Modifier.size(4.dp))
+                line.startsWith("### ") ->
+                    SelectionContainer {
+                        Text(parseInline(line.removePrefix("### "), codeBg), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    }
+                line.startsWith("## ") ->
+                    SelectionContainer {
+                        Text(parseInline(line.removePrefix("## "), codeBg), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
+                line.startsWith("# ") ->
+                    SelectionContainer {
+                        Text(parseInline(line.removePrefix("# "), codeBg), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    }
+                line.startsWith("> ") ->
+                    SelectionContainer {
+                        Text(
+                            parseInline(line.removePrefix("> "), codeBg),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                    }
+                line.startsWith("- ") || line.startsWith("* ") ->
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Text("•  ")
+                        SelectionContainer { Text(parseInline(line.drop(2), codeBg)) }
+                    }
+                Regex("^\\d+\\.\\s").containsMatchIn(line) -> {
+                    val num = line.substringBefore('.', "")
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Text("$num.  ")
+                        SelectionContainer { Text(parseInline(line.substringAfter(". ", line), codeBg)) }
+                    }
+                }
+                else -> SelectionContainer { Text(parseInline(line, codeBg)) }
+            }
+        }
+    }
+}
+
+/** Parse inline markdown spans: **bold**/__bold__, *italic*, `code`. */
+private fun parseInline(s: String, codeBg: Color): AnnotatedString = buildAnnotatedString {
+    var i = 0
+    while (i < s.length) {
+        when {
+            s.startsWith("**", i) -> {
+                val end = s.indexOf("**", i + 2)
+                if (end >= 0) {
+                    pushStyle(SpanStyle(fontWeight = FontWeight.Bold)); append(s.substring(i + 2, end)); pop(); i = end + 2
+                } else { append(s[i]); i++ }
+            }
+            s.startsWith("__", i) -> {
+                val end = s.indexOf("__", i + 2)
+                if (end >= 0) {
+                    pushStyle(SpanStyle(fontWeight = FontWeight.Bold)); append(s.substring(i + 2, end)); pop(); i = end + 2
+                } else { append(s[i]); i++ }
+            }
+            s[i] == '`' -> {
+                val end = s.indexOf('`', i + 1)
+                if (end >= 0) {
+                    pushStyle(SpanStyle(fontFamily = FontFamily.Monospace, background = codeBg)); append(s.substring(i + 1, end)); pop(); i = end + 1
+                } else { append(s[i]); i++ }
+            }
+            s[i] == '*' -> {
+                val end = s.indexOf('*', i + 1)
+                if (end > i + 1) {
+                    pushStyle(SpanStyle(fontStyle = FontStyle.Italic)); append(s.substring(i + 1, end)); pop(); i = end + 1
+                } else { append(s[i]); i++ }
+            }
+            else -> { append(s[i]); i++ }
         }
     }
 }
@@ -524,7 +670,7 @@ private fun AddKeyDialog(vm: AiViewModel, onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
     var providerId by remember { mutableStateOf(vm.providerId) }
     var providerMenu by remember { mutableStateOf(false) }
-    var baseUrl by remember { mutableStateOf(AiPrefs.customBaseUrl) }
+    var baseUrl by remember { mutableStateOf(AiPrefs.getBaseUrl(vm.providerId)) }
     var key by remember { mutableStateOf(AiPrefs.getKey(providerId)) }
     var verifying by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
@@ -548,6 +694,7 @@ private fun AddKeyDialog(vm: AiViewModel, onDismiss: () -> Unit) {
                                 onClick = {
                                     providerId = p.id
                                     key = AiPrefs.getKey(p.id)
+                                    baseUrl = AiPrefs.getBaseUrl(p.id)
                                     providerMenu = false
                                 },
                             )
@@ -587,7 +734,7 @@ private fun AddKeyDialog(vm: AiViewModel, onDismiss: () -> Unit) {
                 onClick = {
                     verifying = true
                     status = null
-                    if (provider.editableBaseUrl) AiPrefs.customBaseUrl = baseUrl
+                    if (provider.editableBaseUrl) AiPrefs.setBaseUrl(provider.id, baseUrl)
                     scope.launch {
                         runCatching { AiClient.listModels(provider, key.trim()) }
                             .onSuccess { models ->

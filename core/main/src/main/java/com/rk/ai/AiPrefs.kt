@@ -14,6 +14,7 @@ object AiPrefs {
     private const val SELECTED_PROVIDER = "ai_selected_provider"
     private const val SELECTED_MODEL = "ai_selected_model"
     private const val CUSTOM_BASE_URL = "ai_custom_base_url"
+    private const val BASE_URL_PREFIX = "ai_base_url_" // per-provider editable base URL
     private const val PERMISSION_PREFIX = "ai_perm_" // per-tool: "ask" | "always" | "never"
 
     fun getKey(providerId: String): String = Preference.getString(KEY_PREFIX + providerId, "")
@@ -30,16 +31,34 @@ object AiPrefs {
         get() = Preference.getString(SELECTED_MODEL, "")
         set(value) = Preference.setString(SELECTED_MODEL, value)
 
+    /**
+     * Per-provider editable base URL (used by Custom and Kiro gateway). The legacy single
+     * [customBaseUrl] is migrated transparently for the "custom" provider.
+     */
+    fun getBaseUrl(providerId: String): String {
+        val stored = Preference.getString(BASE_URL_PREFIX + providerId, "")
+        if (stored.isNotBlank()) return stored
+        // Backward compatibility: the old single custom-base-url pref.
+        if (providerId == AiProviders.CUSTOM.id) return Preference.getString(CUSTOM_BASE_URL, "")
+        return ""
+    }
+
+    fun setBaseUrl(providerId: String, url: String) {
+        Preference.setString(BASE_URL_PREFIX + providerId, url.trim())
+        if (providerId == AiProviders.CUSTOM.id) Preference.setString(CUSTOM_BASE_URL, url.trim())
+    }
+
+    /** Legacy accessor kept for the Custom provider (delegates to the per-provider storage). */
     var customBaseUrl: String
-        get() = Preference.getString(CUSTOM_BASE_URL, "")
-        set(value) = Preference.setString(CUSTOM_BASE_URL, value.trim())
+        get() = getBaseUrl(AiProviders.CUSTOM.id)
+        set(value) = setBaseUrl(AiProviders.CUSTOM.id, value)
 
     /** Whether any provider has a key configured. */
     fun hasAnyKey(): Boolean = AiProviders.all.any { hasKey(it.id) }
 
-    /** Effective base URL for a provider (custom uses the stored URL). */
+    /** Effective base URL for a provider (editable providers use their stored URL). */
     fun baseUrl(provider: AiProvider): String =
-        if (provider.editableBaseUrl) customBaseUrl.ifBlank { provider.baseUrl } else provider.baseUrl
+        if (provider.editableBaseUrl) getBaseUrl(provider.id).ifBlank { provider.baseUrl } else provider.baseUrl
 
     // --- tool permission policy ---------------------------------------------------------------
 
@@ -66,4 +85,15 @@ object AiPrefs {
             },
         )
     }
+
+    // --- MCP (Model Context Protocol) servers -------------------------------------------------
+    // Stored as a JSON array of {"name","command"} objects. Each command is run in the Linux
+    // sandbox (e.g. "npx -y @modelcontextprotocol/server-filesystem /sdcard") and speaks JSON-RPC
+    // over stdio. Empty by default → MCP is completely inert unless the user adds a server.
+
+    private const val MCP_SERVERS = "ai_mcp_servers"
+
+    var mcpServersRaw: String
+        get() = Preference.getString(MCP_SERVERS, "")
+        set(value) = Preference.setString(MCP_SERVERS, value)
 }

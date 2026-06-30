@@ -74,12 +74,14 @@ private fun Categories(navController: NavController) {
         onNavigate = { navController.navigate(SettingsRoutes.Keybindings.route) },
     )
 
-    PreferenceCategory(
-        label = "AI Agent",
-        description = "Provider, API key, default model, and tool permissions",
-        iconResource = drawables.bolt,
-        onNavigate = { navController.navigate(SettingsRoutes.Ai.route) },
-    )
+    if (InbuiltFeatures.ai.state.value) {
+        PreferenceCategory(
+            label = stringResource(strings.ai_agent),
+            description = stringResource(strings.ai_agent_desc),
+            iconResource = drawables.bolt,
+            onNavigate = { navController.navigate(SettingsRoutes.Ai.route) },
+        )
+    }
 
     if (InbuiltFeatures.git.state.value) {
         PreferenceCategory(

@@ -68,6 +68,7 @@ object InbuiltFeatures {
     val debugMode = Feature(nameRes = strings.debug_options, key = "debug_mode", default = BuildConfig.DEBUG)
     val extensions = Feature(nameRes = strings.ext, key = "enable_extension", default = true)
     val git = Feature(nameRes = strings.git, key = "enable_git", default = true)
+    val ai = Feature(nameRes = strings.ai_agent_feature, key = "enable_ai_agent", default = true)
 }
 
 @Composable
@@ -217,6 +218,20 @@ fun SettingsAppScreen(activity: SettingsActivity, navController: NavController) 
                     )
                 },
                 isEnabled = InbuiltFeatures.git.supported,
+            )
+
+            SettingsItem(
+                label = stringResource(InbuiltFeatures.ai.nameRes),
+                default = InbuiltFeatures.ai.state.value,
+                sideEffect = { InbuiltFeatures.ai.setEnable(it) },
+                startWidget = {
+                    Icon(
+                        painter = painterResource(drawables.bolt),
+                        contentDescription = stringResource(strings.ai_agent),
+                        modifier = Modifier.padding(start = 16.dp),
+                    )
+                },
+                isEnabled = InbuiltFeatures.ai.supported,
             )
         }
 

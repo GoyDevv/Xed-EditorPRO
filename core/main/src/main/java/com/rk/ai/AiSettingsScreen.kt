@@ -1,6 +1,9 @@
 package com.rk.ai
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -12,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.rk.components.SettingsItem
 import com.rk.components.compose.preferences.base.PreferenceGroup
 import com.rk.components.compose.preferences.base.PreferenceLayout
@@ -33,6 +37,7 @@ fun AiSettingsScreen() {
     var showKeyDialog by remember { mutableStateOf(false) }
     var showBaseUrlDialog by remember { mutableStateOf(false) }
     var showModelDialog by remember { mutableStateOf(false) }
+    var showMcpAdd by remember { mutableStateOf(false) }
 
     // Force recomposition after edits.
     var rev by remember { mutableStateOf(0) }
@@ -51,7 +56,7 @@ fun AiSettingsScreen() {
             if (provider.editableBaseUrl) {
                 SettingsItem(
                     label = "Base URL",
-                    description = AiPrefs.customBaseUrl.ifBlank { "(not set — e.g. https://host/v1)" },
+                    description = AiPrefs.getBaseUrl(providerId).ifBlank { "(not set — e.g. https://host/v1)" },
                     showSwitch = false,
                     default = false,
                     sideEffect = { showBaseUrlDialog = true },
@@ -86,6 +91,41 @@ fun AiSettingsScreen() {
                     AiTools.names.forEach { AiPrefs.setPolicy(it, AiPrefs.Policy.ASK) }
                     toast("Tool permissions reset")
                 },
+            )
+        }
+
+        PreferenceGroup(heading = "MCP servers") {
+            @Suppress("UNUSED_EXPRESSION") rev
+            val servers = AiMcp.servers()
+            if (servers.isEmpty()) {
+                SettingsItem(
+                    label = "No MCP servers",
+                    description = "Add a Model Context Protocol server to give the agent extra tools.",
+                    showSwitch = false,
+                    default = false,
+                    sideEffect = {},
+                )
+            }
+            servers.forEach { s ->
+                SettingsItem(
+                    label = s.name,
+                    description = s.command + "  ·  tap to remove",
+                    showSwitch = false,
+                    default = false,
+                    sideEffect = {
+                        AiMcp.setServers(AiMcp.servers().filterNot { it.name == s.name })
+                        AiMcp.shutdown()
+                        rev++
+                        toast("Removed ${s.name}")
+                    },
+                )
+            }
+            SettingsItem(
+                label = "Add MCP server",
+                description = "e.g. npx -y @modelcontextprotocol/server-filesystem /sdcard",
+                showSwitch = false,
+                default = false,
+                sideEffect = { showMcpAdd = true },
             )
         }
     }
@@ -145,10 +185,10 @@ fun AiSettingsScreen() {
     if (showBaseUrlDialog) {
         InputDialog(
             title = "Base URL",
-            initial = AiPrefs.customBaseUrl,
+            initial = AiPrefs.getBaseUrl(providerId),
             label = "https://host/v1",
             onSave = {
-                AiPrefs.customBaseUrl = it
+                AiPrefs.setBaseUrl(providerId, it)
                 rev++
                 showBaseUrlDialog = false
             },
@@ -167,6 +207,48 @@ fun AiSettingsScreen() {
                 showModelDialog = false
             },
             onDismiss = { showModelDialog = false },
+        )
+    }
+
+    if (showMcpAdd) {
+        var name by remember { mutableStateOf("") }
+        var command by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showMcpAdd = false },
+            title = { Text("Add MCP server") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        singleLine = true,
+                        label = { Text("Name (e.g. filesystem)") },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.size(8.dp))
+                    OutlinedTextField(
+                        value = command,
+                        onValueChange = { command = it },
+                        label = { Text("Command (runs in the sandbox)") },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (name.isNotBlank() && command.isNotBlank()) {
+                            val list = AiMcp.servers().filterNot { it.name == name.trim() } +
+                                AiMcp.Server(name.trim(), command.trim())
+                            AiMcp.setServers(list)
+                            rev++
+                            toast("Added ${name.trim()}")
+                        }
+                        showMcpAdd = false
+                    }
+                ) { Text("Save") }
+            },
+            dismissButton = { TextButton(onClick = { showMcpAdd = false }) { Text("Cancel") } },
         )
     }
 }

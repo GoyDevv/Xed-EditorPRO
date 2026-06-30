@@ -53,6 +53,23 @@ object AiProviders {
             signupUrl = "https://aistudio.google.com/app/apikey",
         )
 
+    /**
+     * Kiro gateway. Kiro's `ksk_…` key is consumed by the kiro-cli binary and has no documented
+     * public REST endpoint, so to reach Kiro through this agent you point it at a small
+     * **Kiro→OpenAI gateway** (any service that translates OpenAI `/models` + `/chat/completions`
+     * calls into Kiro). The base URL is therefore editable; paste your gateway's base (…/v1) and
+     * use your `ksk_` (or the gateway's) key. Models are listed live from the gateway.
+     */
+    val KIRO =
+        AiProvider(
+            id = "kiro",
+            label = "Kiro (gateway)",
+            baseUrl = "http://localhost:3000/v1",
+            editableBaseUrl = true,
+            defaultModel = "claude-sonnet-4",
+            signupUrl = "https://kiro.dev",
+        )
+
     val CUSTOM =
         AiProvider(
             id = "custom",
@@ -63,7 +80,7 @@ object AiProviders {
             signupUrl = "",
         )
 
-    val all = listOf(OPENROUTER, OPENAI, GEMINI, CUSTOM)
+    val all = listOf(OPENROUTER, OPENAI, GEMINI, KIRO, CUSTOM)
 
     fun byId(id: String?): AiProvider = all.firstOrNull { it.id == id } ?: OPENROUTER
 

@@ -130,6 +130,7 @@ class AiViewModel : ViewModel() {
         sessions.add(0, s)
         currentSessionId = s.id
         AiTaskStore.clear()
+        AiTerminal.shutdown()
         persist()
     }
 
@@ -150,6 +151,21 @@ class AiViewModel : ViewModel() {
     /** The most recent user message text (used by /retry). */
     fun lastUserText(): String = current?.messages?.lastOrNull { it.role == "user" }?.content ?: ""
 
+    /**
+     * Edit a previously-sent user message and resend it: drops that message and everything after it
+     * (the old assistant reply + tool results), then sends [newText] fresh. The system prompt and
+     * earlier history are kept.
+     */
+    fun editAndResend(message: AiMessage, newText: String, workingDir: String) {
+        if (busy || newText.isBlank()) return
+        val session = current ?: return
+        val idx = session.messages.indexOfFirst { it === message }
+        if (idx < 0) return
+        while (session.messages.size > idx) session.messages.removeAt(session.messages.size - 1)
+        persist()
+        send(newText, workingDir)
+    }
+
     private fun ensureSession(): Session = current ?: Session(id = System.currentTimeMillis().toString(), title = "New chat").also {
         sessions.add(0, it)
         currentSessionId = it.id
@@ -162,6 +178,10 @@ class AiViewModel : ViewModel() {
                 "You are Xed, a coding agent embedded in the Xed-Editor Android IDE. " +
                     "You can read and write files and run shell commands in the user's Linux sandbox using the provided tools. " +
                     "The current project directory is: $workingDir. " +
+                    "run_command uses a persistent shell: your working directory, environment variables and " +
+                    "activated environments carry over between commands and turns (the user may kill this terminal; " +
+                    "if so it is transparently restarted and you will be told). " +
+                    "For multi-hunk edits prefer apply_patch (a unified diff); use edit_file for a single targeted change. " +
                     "Prefer using tools to inspect the project before answering. Keep responses concise. " +
                     "For multi-step work, call set_tasks first with your plan, then mark each done with " +
                     "complete_task as you finish it. " +
@@ -191,6 +211,7 @@ class AiViewModel : ViewModel() {
         com.rk.utils.application?.let { AiAgentService.start(it, "Working · $model") }
         runJob =
             viewModelScope.launch {
+                runCatching { AiMcp.ensureConnected() } // optional; no-op if no servers configured
                 runCatching { runAgentLoop(session, key, workingDir) }
                     .onFailure { if (it !is kotlinx.coroutines.CancellationException) error = it.message }
                 busy = false

@@ -1,7 +1,5 @@
 package com.rk.ai
 
-import com.rk.exec.ShellUtils
-import com.rk.runner.ProjectRunner
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
@@ -17,7 +15,7 @@ import org.json.JSONObject
  * gated by the permission policy in [AiAgent].
  *
  * File tools operate on the real filesystem (relative paths resolve against the project root).
- * `run_command` runs in the Linux sandbox via [ShellUtils.runUbuntu].
+ * `run_command` runs in the persistent Linux-sandbox shell held by [AiTerminal].
  */
 object AiTools {
 
@@ -26,6 +24,7 @@ object AiTools {
             "read_file",
             "write_file",
             "edit_file",
+            "apply_patch",
             "create_dir",
             "list_dir",
             "glob_files",
@@ -144,6 +143,19 @@ object AiTools {
             )
             put(
                 tool(
+                    "apply_patch",
+                    "Apply a unified-diff patch (one or more @@ hunks) to a single existing file. " +
+                        "Prefer this for multi-hunk edits. The patch body uses lines prefixed with a space " +
+                        "(context), '-' (remove) or '+' (add), under '@@ -old,len +new,len @@' headers. " +
+                        "Context/removed lines must match the file exactly or the patch is rejected.",
+                    JSONObject()
+                        .put("path", strProp("File path, relative to the project root."))
+                        .put("patch", strProp("Unified diff body (the @@ hunks; no need for ---/+++ header lines).")),
+                    listOf("path", "patch"),
+                )
+            )
+            put(
+                tool(
                     "glob_files",
                     "Find files matching a glob pattern (e.g. *.kt, src/**/*.java).",
                     JSONObject()
@@ -198,6 +210,9 @@ object AiTools {
                     listOf("url"),
                 )
             )
+            // Merge in any tools exposed by connected MCP servers (named mcp__server__tool).
+            val mcp = AiMcp.toolSchemas()
+            for (i in 0 until mcp.length()) put(mcp.getJSONObject(i))
         }
     }
 
@@ -213,17 +228,76 @@ object AiTools {
             "delete_file" -> "Delete ${args?.optString("path")}"
             "move_file" -> "Move ${args?.optString("from")} → ${args?.optString("to")}"
             "edit_file" -> "Edit ${args?.optString("path")}"
+            "apply_patch" -> "Patch ${args?.optString("path")}"
             "glob_files" -> "Find ${args?.optString("pattern")}"
             "create_dir" -> "Create dir ${args?.optString("path")}"
             "set_tasks" -> "Plan tasks"
             "complete_task" -> "Complete task ${args?.optInt("index")}"
             "fetch_url" -> "Fetch ${args?.optString("url")}"
-            else -> call.name
+            else -> if (AiMcp.isMcpTool(call.name)) AiMcp.describe(call.name) else call.name
         }
     }
 
     private fun resolve(workingDir: String, path: String): File =
         if (path.startsWith("/")) File(path) else File(workingDir, path)
+
+    /**
+     * Apply a unified-diff [patch] (one or more `@@` hunks) to [original] and return the new text.
+     * Context (' ') and removed ('-') lines are verified against the source; on any mismatch this
+     * throws [IllegalStateException] (caught by [execute]) so a bad patch never corrupts the file.
+     */
+    private fun applyUnifiedDiff(original: String, patch: String): String {
+        val nl = if (original.contains("\r\n")) "\r\n" else "\n"
+        val orig = original.split("\n").map { it.removeSuffix("\r") }
+        val patchLines = patch.split("\n").map { it.removeSuffix("\r") }
+        val out = ArrayList<String>()
+        var oi = 0 // 0-based index into orig
+        var pi = 0
+        var sawHunk = false
+        while (pi < patchLines.size) {
+            val line = patchLines[pi]
+            if (line.startsWith("@@")) {
+                sawHunk = true
+                val m = Regex("@@\\s*-(\\d+)(?:,(\\d+))?\\s*\\+(\\d+)(?:,(\\d+))?\\s*@@").find(line)
+                val oldStart = (m?.groupValues?.getOrNull(1)?.toIntOrNull() ?: (oi + 1)) - 1
+                // Copy untouched lines before the hunk.
+                while (oi < oldStart && oi < orig.size) {
+                    out.add(orig[oi]); oi++
+                }
+                pi++
+                while (pi < patchLines.size && !patchLines[pi].startsWith("@@")) {
+                    val pl = patchLines[pi]
+                    when {
+                        pl.startsWith("\\") -> {} // "\ No newline at end of file"
+                        pl.startsWith("+") -> out.add(pl.substring(1))
+                        pl.startsWith("-") -> {
+                            val expected = pl.substring(1)
+                            if (oi >= orig.size || orig[oi] != expected)
+                                error("patch context mismatch near source line ${oi + 1}: expected to remove \"$expected\"")
+                            oi++
+                        }
+                        pl.startsWith(" ") -> {
+                            val expected = pl.substring(1)
+                            if (oi >= orig.size || orig[oi] != expected)
+                                error("patch context mismatch near source line ${oi + 1}: expected \"$expected\"")
+                            out.add(orig[oi]); oi++
+                        }
+                        pl.isEmpty() -> {
+                            // Treat a bare empty line as a blank context line.
+                            if (oi < orig.size && orig[oi].isEmpty()) { out.add(""); oi++ } else out.add("")
+                        }
+                        else -> error("unexpected patch line: \"$pl\"")
+                    }
+                    pi++
+                }
+            } else {
+                pi++ // skip ---/+++ headers or stray lines outside hunks
+            }
+        }
+        if (!sawHunk) error("no @@ hunks found in patch")
+        while (oi < orig.size) { out.add(orig[oi]); oi++ }
+        return out.joinToString(nl)
+    }
 
     /** Execute a tool call. Returns the result text fed back to the model. Never throws. */
     suspend fun execute(call: AiToolCall, workingDir: String): String {
@@ -253,18 +327,8 @@ object AiTools {
                     }
                     "run_command" -> {
                         val cmd = args.optString("command")
-                        val sandboxDir = ProjectRunner.toSandboxPath(workingDir)
-                        val res =
-                            ShellUtils.runUbuntu(
-                                workingDir = sandboxDir,
-                                command = arrayOf("bash", "-lc", cmd),
-                                timeoutSeconds = 600L,
-                            )
-                        buildString {
-                            if (res.output.isNotBlank()) appendLine(res.output)
-                            if (res.error.isNotBlank()) appendLine(res.error)
-                            append(if (res.timedOut) "[timed out]" else "[exit ${res.exitCode}]")
-                        }
+                        if (cmd.isBlank()) "Error: command is empty"
+                        else AiTerminal.run(cmd, workingDir)
                     }
                     "search_text" -> {
                         val q = args.optString("query")
@@ -317,6 +381,17 @@ object AiTools {
                                 f.writeText(updated)
                                 "Edited ${f.absolutePath}"
                             }
+                        }
+                    }
+                    "apply_patch" -> {
+                        val f = resolve(workingDir, args.optString("path"))
+                        val patch = args.optString("patch")
+                        if (!f.isFile) "Error: file not found: ${f.absolutePath}"
+                        else if (patch.isBlank()) "Error: patch is empty"
+                        else {
+                            val updated = applyUnifiedDiff(f.readText(), patch) // throws on mismatch
+                            f.writeText(updated)
+                            "Patched ${f.absolutePath}"
                         }
                     }
                     "glob_files" -> {
@@ -378,7 +453,7 @@ object AiTools {
                                 }
                             }
                     }
-                    else -> "Unknown tool: ${call.name}"
+                    else -> if (AiMcp.isMcpTool(call.name)) AiMcp.call(call.name, call.arguments) else "Unknown tool: ${call.name}"
                 }
             }
             .getOrElse { "Error: ${it.message}" }

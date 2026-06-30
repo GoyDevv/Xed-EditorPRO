@@ -58,9 +58,10 @@ A literal "Kiro" provider isn't a preset because there's no public endpoint; the
 
 ## 2. Files (where to look for what) — all under `core/main/src/main/java/com/rk/ai/`
 
-- **AiProviders.kt** — `AiProvider` data class + presets (`OPENROUTER`, `OPENAI`, `GEMINI`, `CUSTOM`),
-  `AiProviders.all`, `byId()`, and `contextWindow(model)` (token window estimate used for "% used").
-  Add new providers here.
+- **AiProviders.kt** — `AiProvider` data class + presets (`OPENROUTER`, `OPENAI`, `GEMINI`, `KIRO`,
+  `CUSTOM`), `AiProviders.all`, `byId()`, and `contextWindow(model)` (token window estimate used for
+  "% used"). `KIRO` is a "Kiro (gateway)" preset with an editable base URL (Kiro has no public REST
+  endpoint, so it points at a Kiro→OpenAI gateway). Add new providers here.
 - **AiPrefs.kt** — all persistence via the app's `Preference` store: `getKey/setKey/hasKey` (per
   provider id), `selectedProviderId`, `selectedModel`, `customBaseUrl`, `baseUrl(provider)`, and the
   per-tool permission `Policy` (ASK/ALWAYS/NEVER) via `getPolicy/setPolicy`. Keys never leave the
@@ -163,3 +164,38 @@ that holds one persistent ubuntuProcess and pipes run_command through it.
 3. For the agent terminal: copy `RunService`'s foreground-service pattern; route `run_command` through it.
 4. Build is verified via **GitHub Actions CI** (no local Android SDK in the dev env). Bump version in
    `app/build.gradle.kts` and add a `changelog-X.Y.Z.txt` at repo root for each release.
+
+
+---
+
+## 5. 4.1.12 — Feature complete (ALL roadmap items done)
+
+Everything in Phases 2–3 is now implemented. New in 4.1.12:
+
+- **AI Agent on/off setting.** `InbuiltFeatures.ai` (key `enable_ai_agent`, default on) with a toggle
+  in Settings → App → Feature toggles. `AiTab.isSupported()` returns the flag, so the AI drawer tab
+  disappears when off (same mechanism as Git); the "AI Agent" settings category is also hidden.
+- **Kiro gateway provider.** `AiProviders.KIRO` (editable base URL, default `http://localhost:3000/v1`,
+  default model `claude-sonnet-4`). Base URLs are now stored **per provider** in `AiPrefs`
+  (`getBaseUrl`/`setBaseUrl`); `customBaseUrl` delegates to the custom provider for back-compat.
+- **Persistent agent terminal** (`AiTerminal.kt`): one long-lived sandbox `bash` (stderr merged into
+  stdout) that keeps `cd`/env/venvs across `run_command` calls and turns. Unique per-command marker
+  carries the exit code; poll-based read with a 10-min timeout (hung command → clean restart). The
+  user can **Kill** it (button in the AI tab); the next command transparently restarts a fresh shell
+  and the model is told. `run_command` routes through it; `newSession()` shuts it down.
+- **apply_patch tool**: applies multi-hunk unified diffs; verifies context/removed lines and rejects
+  a mismatching patch rather than corrupting the file.
+- **Edit-and-resend**: tap a user bubble → edit dialog → `AiViewModel.editAndResend` truncates from
+  that message and resends.
+- **Richer markdown**: `MarkdownText`/`parseInline` render headings, blockquotes, bullet/numbered
+  lists, bold/italic, inline code (plus the existing fenced code blocks with Copy).
+- **Optional MCP** (`AiMcp.kt`): connects to user-configured MCP servers (JSON-RPC over stdio in the
+  sandbox), lists their tools, and bridges them as `mcp__<server>__<tool>` into the model's tool list
+  (permission-gated like any tool). Configured in AI settings → "MCP servers". Fully additive: with no
+  servers configured nothing changes.
+
+Toolset (14 built-in + MCP): read_file, write_file, edit_file, apply_patch, create_dir, list_dir,
+glob_files, search_text, run_command, delete_file, move_file, set_tasks, complete_task, fetch_url.
+
+Note on the earlier "true in-flight OkHttp cancel" caveat: that was completed in 4.1.8
+(`AiClient.cancel()` aborts the streaming call; `stop()` calls it).

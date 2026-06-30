@@ -1,0 +1,85 @@
+Xed-Editor PRO — Changelog
+Version 4.1.12 (versionCode 119)
+
+AI Agent — feature complete: on/off toggle, Kiro gateway, persistent terminal, apply_patch,
+edit-and-resend, richer markdown, and optional MCP support.
+
+>>> BUILD NOTE: does NOT build locally (dev env has JDK 17, no Android SDK 37 / NDK; project needs
+>>> JDK 21). Verified ONLY by GitHub Actions CI. Everything is written carefully and validated by CI.
+
+================================================================================
+NEW in 4.1.12
+================================================================================
+
+1) AI Agent on/off setting (the tab disappears when off)
+   - core/main/.../settings/app/SettingsAppScreen.kt: added InbuiltFeatures.ai
+       Feature(nameRes = strings.ai_agent_feature, key = "enable_ai_agent", default = true) and a
+       toggle in the "Feature toggles" group (bolt icon).
+   - core/main/.../ai/AiTab.kt: AiTab.isSupported() now returns InbuiltFeatures.ai.state.value, so
+       the AI service tab is hidden from the drawer rail when the feature is disabled (same mechanism
+       Git uses).
+   - core/main/.../settings/SettingsScreen.kt: the "AI Agent" settings category is shown only when
+       the feature is enabled.
+   - core/resources/.../values/strings.xml: ai_agent, ai_agent_feature, ai_agent_desc.
+
+2) Kiro gateway provider
+   - core/main/.../ai/AiProviders.kt: added AiProviders.KIRO ("Kiro (gateway)") with an editable
+       base URL (default http://localhost:3000/v1) and default model claude-sonnet-4. Kiro's ksk_ key
+       has no public REST endpoint (it's consumed by kiro-cli), so this points at a Kiro→OpenAI
+       gateway; paste your gateway base (…/v1) and key, models are listed live.
+   - core/main/.../ai/AiPrefs.kt: base URLs are now stored PER PROVIDER (getBaseUrl/setBaseUrl +
+       BASE_URL_PREFIX) so Kiro and Custom no longer share one URL; the old customBaseUrl delegates
+       to the custom provider for backward compatibility.
+   - AddKeyDialog (AiTab) and AiSettingsScreen updated to read/write the per-provider base URL.
+
+3) Persistent agent terminal across turns (kill + auto-restart)
+   - core/main/.../ai/AiTerminal.kt (new): one long-lived bash process in the Linux sandbox via
+       ubuntuProcess, with the shell's stderr merged into stdout. cd / env / venvs persist across
+       run_command calls and turns. Each command is delimited by a unique printed marker carrying the
+       exit code. Poll-based reads with a 10-min timeout (a hung command triggers a clean restart).
+       Compose state (isAlive / currentCommand / killedByUser). kill() (user) and shutdown() (new chat).
+   - core/main/.../ai/AiTools.kt: run_command now routes through AiTerminal.run(); when the user has
+       killed the shell, the next command transparently starts a fresh one and the model is told.
+   - core/main/.../ai/AiTab.kt: a status row shows "Terminal · <cmd>" with a Kill button while alive.
+   - newSession() shuts the terminal down; the system prompt explains the persistent shell.
+
+4) apply_patch tool (multi-hunk unified diff)
+   - core/main/.../ai/AiTools.kt: apply_patch(path, patch) applies unified-diff @@ hunks to a file.
+       Context/removed lines are verified against the source; any mismatch rejects the whole patch
+       (IllegalStateException → "Error: …") so a bad patch can never corrupt the file.
+   - Full toolset (14): read_file, write_file, edit_file, apply_patch, create_dir, list_dir,
+       glob_files, search_text, run_command, delete_file, move_file, set_tasks, complete_task,
+       fetch_url (+ any mcp__server__tool from MCP).
+
+5) Edit-and-resend
+   - core/main/.../ai/AiViewModel.kt: editAndResend(message, newText, workingDir) drops that user
+       message and everything after it, then sends the edited text fresh (system prompt + earlier
+       history kept).
+   - core/main/.../ai/AiTab.kt: tap a user message bubble to open an "Edit & resend" dialog.
+
+6) Richer markdown rendering of assistant replies
+   - core/main/.../ai/AiTab.kt: MarkdownText + parseInline render headings (#/##/###), blockquotes,
+       bullet (- / *) and numbered lists, **bold**/__bold__, *italic*, and `inline code`, in addition
+       to the existing fenced ``` code blocks with a Copy button.
+
+7) Optional MCP (Model Context Protocol) support
+   - core/main/.../ai/AiMcp.kt (new): connects to user-configured MCP servers (JSON-RPC 2.0 over
+       newline-delimited stdio) running in the sandbox; runs initialize + tools/list, bridges each
+       discovered tool into the model's tool list as mcp__<server>__<tool>, and routes tools/call.
+       Fully additive and guarded — with no servers configured nothing changes; failures never break
+       the core agent.
+   - core/main/.../ai/AiPrefs.kt: mcpServersRaw (JSON array of {name, command}).
+   - core/main/.../ai/AiTools.kt: MCP schemas merged into schemas(); describe()/execute() route mcp__.
+   - core/main/.../ai/AiViewModel.kt: AiMcp.ensureConnected() runs at the start of each turn.
+   - core/main/.../ai/AiSettingsScreen.kt: "MCP servers" group to add/remove servers.
+
+- app/build.gradle.kts: 4.1.11 -> 4.1.12 (versionCode 118 -> 119).
+- phases.md: all roadmap items marked done.
+
+================================================================================
+AI feature timeline (full detail in phases.md)
+================================================================================
+4.1.0 engine+UI · 4.1.1 persistence · 4.1.2 streaming · 4.1.3 stop · 4.1.4 bg notif · 4.1.5 settings ·
+4.1.6/4.1.7 tools + slash /commands · 4.1.8 true cancel + code rendering · 4.1.9 task tools ·
+4.1.10 web fetch · 4.1.11 /retry · 4.1.12 on/off + Kiro gateway + persistent terminal + apply_patch +
+edit-and-resend + richer markdown + MCP (this file). Feature complete.
