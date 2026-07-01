@@ -48,6 +48,8 @@ import com.rk.search.FileSearchDialog
 import com.rk.utils.application
 import com.rk.utils.errorDialog
 import com.rk.utils.getTempDir
+import com.rk.utils.toast
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -61,6 +63,8 @@ fun GlobalToolbarActions(viewModel: MainViewModel, drawerViewModel: DrawerViewMo
     val activity = LocalActivity.current
     val scope = rememberCoroutineScope()
     var tempFileNameDialog by remember { mutableStateOf(false) }
+    var rootFileDialog by remember { mutableStateOf(false) }
+    var rootFilePath by remember { mutableStateOf("") }
 
     val commands by remember { derivedStateOf { ToolbarConfiguration.globalCommands } }
 
@@ -168,6 +172,14 @@ fun GlobalToolbarActions(viewModel: MainViewModel, drawerViewModel: DrawerViewMo
                     addDialog = false
                 }
 
+                if ((drawerViewModel.currentDrawerTab as? FileTreeTab)?.root != null) {
+                    AddDialogItem(icon = XedIcons.CreateNewFile, title = "New file in project root") {
+                        addDialog = false
+                        rootFilePath = ""
+                        rootFileDialog = true
+                    }
+                }
+
                 AddDialogItem(icon = XedIcons.CreateNewFile, title = stringResource(strings.new_file)) {
                     addDialog = false
                     val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
@@ -220,50 +232,17 @@ fun GlobalToolbarActions(viewModel: MainViewModel, drawerViewModel: DrawerViewMo
 
     if (tempFileNameDialog) {
         var fileName by remember { mutableStateOf("untitled.txt") }
-
-        fun getUniqueFileName(baseName: String): String {
-            val tempDir = getTempDir().child("temp_editor")
-            val extension = baseName.substringAfterLast('.', "")
-            val nameWithoutExt = baseName.substringBeforeLast('.', baseName)
-
-            // Check if base name is available
-            if (!tempDir.child(baseName).exists()) {
-                return baseName
-            }
-
-            // Find next available number
-            var counter = 1
-            var uniqueName: String
-            do {
-                uniqueName =
-                    if (extension.isNotEmpty()) {
-                        "${nameWithoutExt}${counter}.${extension}"
-                    } else {
-                        "${nameWithoutExt}${counter}"
-                    }
-                counter++
-            } while (tempDir.child(uniqueName).exists())
-
-            return uniqueName
-        }
-
-        fun getUniqueTempFile(): FileObject {
-            val uniqueName = getUniqueFileName(fileName)
-            fileName = uniqueName // Update the state with the unique name
-
-            // do not change getTempDir().child("temp_editor") it used for checking in editor tab
-            return FileWrapper(getTempDir().child("temp_editor").child(uniqueName))
-        }
-
-        val tempFile = getUniqueTempFile()
-
         SingleInputDialog(
             title = stringResource(strings.temp_file),
             inputValue = fileName,
             onInputValueChange = { fileName = it },
             onConfirm = {
+                val requested = fileName.ifBlank { "untitled.txt" }
+                tempFileNameDialog = false
                 DefaultScope.launch(Dispatchers.IO) {
-                    tempFileNameDialog = false
+                    // do not change getTempDir().child("temp_editor") — it's used for checks in EditorTab
+                    val tempDir = getTempDir().child("temp_editor")
+                    val tempFile = FileWrapper(tempDir.child(uniqueTempName(tempDir, requested)))
                     tempFile.createFileIfNot()
                     viewModel.editorManager.openFile(tempFile, projectRoot = null, switchToTab = true)
                 }
@@ -274,4 +253,54 @@ fun GlobalToolbarActions(viewModel: MainViewModel, drawerViewModel: DrawerViewMo
             inputLabel = stringResource(strings.file_name),
         )
     }
+
+    if (rootFileDialog) {
+        val projectRootObj = (drawerViewModel.currentDrawerTab as? FileTreeTab)?.root
+        SingleInputDialog(
+            title = "New file in project root",
+            inputValue = rootFilePath,
+            onInputValueChange = { rootFilePath = it },
+            onConfirm = {
+                val rel = rootFilePath.trim().trimStart('/')
+                rootFileDialog = false
+                if (projectRootObj != null && rel.isNotBlank()) {
+                    DefaultScope.launch(Dispatchers.IO) {
+                        runCatching {
+                            val base = File(projectRootObj.getAbsolutePath())
+                            val target = File(base, rel)
+                            target.parentFile?.mkdirs()
+                            if (!target.exists()) target.createNewFile()
+                            viewModel.editorManager.openFile(
+                                FileWrapper(target),
+                                projectRoot = projectRootObj,
+                                switchToTab = true,
+                            )
+                        }.onFailure { toast(it.message ?: "Could not create file") }
+                    }
+                }
+                rootFilePath = ""
+            },
+            onDismiss = {
+                rootFileDialog = false
+                rootFilePath = ""
+            },
+            singleLineMode = true,
+            confirmText = stringResource(strings.ok),
+            inputLabel = "Path, e.g. src/utils/File.kt — any /folders/ in the path are created for you",
+        )
+    }
+}
+
+/** Next free name in [dir] for [base] (untitled.txt -> untitled1.txt -> …). No state side effects. */
+private fun uniqueTempName(dir: File, base: String): String {
+    if (!dir.child(base).exists()) return base
+    val ext = base.substringAfterLast('.', "")
+    val name = base.substringBeforeLast('.', base)
+    var i = 1
+    var candidate: String
+    do {
+        candidate = if (ext.isNotEmpty()) "$name$i.$ext" else "$name$i"
+        i++
+    } while (dir.child(candidate).exists())
+    return candidate
 }

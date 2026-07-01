@@ -39,7 +39,11 @@ class GitViewModel : ViewModel() {
     var currentBranch by mutableStateOf("")
     var changes = mutableStateMapOf<String, List<GitChange>>()
     var commitMessages = mutableStateMapOf<String, String>()
+    var commitDescriptions = mutableStateMapOf<String, String>()
     var amends = mutableStateMapOf<String, Boolean>()
+
+    /** Per-file diff cache (path -> unified diff text) for the inline Diff tab. */
+    val diffs = mutableStateMapOf<String, String>()
 
     var isLoading by mutableStateOf(false)
 
@@ -58,6 +62,9 @@ class GitViewModel : ViewModel() {
             }
             if (!commitMessages.containsKey(root)) {
                 commitMessages[root] = ""
+            }
+            if (!commitDescriptions.containsKey(root)) {
+                commitDescriptions[root] = ""
             }
         } catch (e: Exception) {
             toast(e.message)
@@ -121,6 +128,19 @@ class GitViewModel : ViewModel() {
 
     fun changeCommitMessage(message: String) {
         commitMessages[currentRoot.value!!.absolutePath] = message
+    }
+
+    fun changeCommitDescription(description: String) {
+        currentRoot.value?.let { commitDescriptions[it.absolutePath] = description }
+    }
+
+    /** Loads (and caches) the diff for [change] for the inline Diff tab. */
+    fun loadDiffFor(change: GitChange) {
+        if (diffs.containsKey(change.path)) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val text = computeDiff(change)
+            withContext(Dispatchers.Main) { diffs[change.path] = text }
+        }
     }
 
     fun toggleAmend(amend: Boolean) {
@@ -359,6 +379,7 @@ class GitViewModel : ViewModel() {
                         newChanges
                     }
                 changes[gitRoot] = mergedChanges
+                diffs.clear()
             } catch (e: Exception) {
                 toast(e.message)
             } finally {
@@ -386,7 +407,14 @@ class GitViewModel : ViewModel() {
                     git.commit()
                         .setAuthor(Settings.git_name, Settings.git_email)
                         .setCommitter(Settings.git_name, Settings.git_email)
-                        .setMessage(commitMessages[currentRoot.value!!.absolutePath])
+                        .setMessage(
+                            run {
+                                val root = currentRoot.value!!.absolutePath
+                                val title = commitMessages[root]?.trim() ?: ""
+                                val body = commitDescriptions[root]?.trim() ?: ""
+                                if (body.isBlank()) title else "$title\n\n$body"
+                            }
+                        )
                         .setAmend(amends[currentRoot.value!!.absolutePath]!!)
                         .call()
                     toast(strings.commit_complete)
@@ -519,6 +547,33 @@ class GitViewModel : ViewModel() {
     fun closeDiff() {
         diffTarget = null
         diffContent = null
+    }
+
+    /** The configured `origin` remote URL, or null. */
+    fun getOriginUrl(): String? =
+        try {
+            Git.open(currentRoot.value).use { it.repository.config.getString("remote", "origin", "url") }
+        } catch (e: Exception) {
+            null
+        }
+
+    /** Set (or create) the `origin` remote URL for this repository. */
+    fun setOriginUrl(url: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                Git.open(currentRoot.value).use { git ->
+                    val cfg = git.repository.config
+                    cfg.setString("remote", "origin", "url", url.trim())
+                    if (cfg.getString("remote", "origin", "fetch") == null) {
+                        cfg.setString("remote", "origin", "fetch", "+refs/heads/*:refs/remotes/origin/*")
+                    }
+                    cfg.save()
+                }
+                withContext(Dispatchers.Main) { toast("Origin updated") }
+            } catch (e: Exception) {
+                toast(e.message)
+            }
+        }
     }
 
     private fun computeDiff(change: GitChange): String {

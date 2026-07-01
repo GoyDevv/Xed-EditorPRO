@@ -1,5 +1,8 @@
 package com.rk.components
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.imePadding
@@ -32,12 +35,18 @@ import com.rk.settings.Settings
 var isDrawerExpanded by mutableStateOf(false)
 
 @Composable
-inline fun getDrawerWidth(): Dp {
+fun getDrawerWidth(): Dp {
     val density = LocalDensity.current
     val widthPx = LocalWindowInfo.current.containerSize.width
-    val fraction = if (isDrawerExpanded) 1f else 0.83f
-    val width = with(density) { (widthPx * fraction).toDp() }
-    return width
+    val targetFraction = if (isDrawerExpanded) 1f else 0.83f
+    // Glide between collapsed/expanded widths instead of snapping.
+    val fraction by
+        animateFloatAsState(
+            targetValue = targetFraction,
+            animationSpec = spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMediumLow),
+            label = "drawerWidthFraction",
+        )
+    return with(density) { (widthPx * fraction).toDp() }
 }
 
 var isPermanentDrawer by mutableStateOf(false)

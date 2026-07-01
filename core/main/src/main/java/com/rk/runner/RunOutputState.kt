@@ -94,8 +94,9 @@ object RunOutputState {
         isRunning = false
     }
 
-    /** Hide and clear the floating view entirely. */
+    /** Hide and clear the floating view entirely. Also stops the build if it's still running. */
     fun dismiss() {
+        if (isRunning) runCatching { stopper?.invoke() }
         isActive = false
         isRunning = false
         label = ""

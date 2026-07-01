@@ -1,16 +1,22 @@
 package com.rk.activities.main
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.DrawerState
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -19,6 +25,7 @@ import androidx.compose.material3.LeadingIconTab
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryScrollableTabRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,6 +47,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mohamedrejeb.compose.dnd.reorder.ReorderContainer
@@ -72,7 +80,10 @@ import com.rk.utils.dialogRes
 import com.rk.utils.drawErrorUnderline
 import com.rk.utils.getGitColor
 import com.rk.utils.getUnderlineColor
+import java.io.File
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun MainContent(
@@ -133,11 +144,10 @@ fun MainContent(
         }
 
         if (visibleTabs.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                TextButton(onClick = { scope.launch { drawerState.open() } }) {
-                    Text(text = stringResource(strings.click_open), style = MaterialTheme.typography.bodyLarge)
-                }
-            }
+            EmptyEditorState(
+                projectPath = currentProjectPath,
+                onOpenTree = { scope.launch { drawerState.open() } },
+            )
         } else {
             val pagerState = rememberPagerState(pageCount = { visibleTabsFor(mainViewModel, drawerViewModel).size })
 
@@ -489,3 +499,124 @@ private fun TabItemContent(
         )
     }
 }
+
+
+/**
+ * Shown in the editor area when no file is open. If a project/folder is selected, it summarizes the
+ * project (name, path, dominant language) with an "Open file tree" button; otherwise it prompts to
+ * open a folder.
+ */
+@Composable
+private fun EmptyEditorState(projectPath: String?, onOpenTree: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(
+            painter = painterResource(drawables.outline_folder),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(44.dp),
+        )
+        Spacer(Modifier.height(14.dp))
+
+        if (projectPath != null) {
+            val root = remember(projectPath) { File(projectPath) }
+            Text(
+                text = root.name,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = projectPath,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(10.dp))
+            val language by
+                produceState<String?>(initialValue = null, projectPath) {
+                    value = withContext(Dispatchers.IO) { detectMajorityLanguage(root) }
+                }
+            language?.let {
+                Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = RoundedCornerShape(50)) {
+                    Text(
+                        text = "● $it",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+            Button(onClick = onOpenTree) {
+                Icon(painterResource(drawables.outline_folder), contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Open file tree")
+            }
+        } else {
+            Text("No folder opened", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Open a folder to start editing.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(20.dp))
+            Button(onClick = onOpenTree) { Text("Open file tree") }
+        }
+    }
+}
+
+/** Best-effort "majority codebase" detection by counting files per language (bounded walk). */
+private fun detectMajorityLanguage(root: File): String? {
+    val skip = setOf(".git", "node_modules", "build", ".gradle", ".idea", ".cxx", "out", "dist", ".dart_tool", "vendor")
+    val counts = HashMap<String, Int>()
+    runCatching {
+        root.walkTopDown()
+            .onEnter { it.name !in skip }
+            .filter { it.isFile }
+            .take(6000)
+            .forEach { f ->
+                val lang = languageForExtension(f.name.substringAfterLast('.', "").lowercase()) ?: return@forEach
+                counts[lang] = (counts[lang] ?: 0) + 1
+            }
+    }
+    val top = counts.maxByOrNull { it.value } ?: return null
+    val total = counts.values.sum().coerceAtLeast(1)
+    return "${top.key} · ${top.value * 100 / total}%"
+}
+
+private fun languageForExtension(ext: String): String? =
+    when (ext) {
+        "kt", "kts" -> "Kotlin"
+        "java" -> "Java"
+        "py" -> "Python"
+        "js", "mjs", "cjs" -> "JavaScript"
+        "ts" -> "TypeScript"
+        "tsx", "jsx" -> "React"
+        "c" -> "C"
+        "cpp", "cc", "cxx", "hpp", "hh" -> "C++"
+        "h" -> "C/C++"
+        "rs" -> "Rust"
+        "go" -> "Go"
+        "rb" -> "Ruby"
+        "php" -> "PHP"
+        "swift" -> "Swift"
+        "dart" -> "Dart"
+        "html", "htm" -> "HTML"
+        "css", "scss", "sass" -> "CSS"
+        "json" -> "JSON"
+        "xml" -> "XML"
+        "md", "markdown" -> "Markdown"
+        "sh", "bash" -> "Shell"
+        "gradle" -> "Gradle"
+        "yml", "yaml" -> "YAML"
+        "sql" -> "SQL"
+        else -> null
+    }

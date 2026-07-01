@@ -62,13 +62,13 @@ import com.rk.resources.drawables
 import com.rk.resources.strings
 import com.rk.utils.toast
 
-/** Compact monospace style for the full output — tight line spacing so log lines read as one block. */
+/** Compact style for the full output — default app font, tight line spacing so logs read as a block. */
 private val OutputTextStyle =
-    TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.sp)
+    TextStyle(fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.sp)
 
-/** Compact monospace style for the collapsed bar's latest line. */
+/** Compact style for the collapsed bar's latest line (default app font). */
 private val LatestLineStyle =
-    TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 14.sp, letterSpacing = 0.sp)
+    TextStyle(fontSize = 12.sp, lineHeight = 14.sp, letterSpacing = 0.sp)
 
 /**
  * Floating build/run view shown at the bottom of the editor while a background build runs.
