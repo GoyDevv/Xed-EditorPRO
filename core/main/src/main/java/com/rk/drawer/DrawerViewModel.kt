@@ -40,8 +40,6 @@ class DrawerViewModel : ViewModel() {
 
     internal fun setupBuiltinServices(gitViewModel: GitViewModel) {
         _serviceTabs.clear()
-        // AI Agent sits above Git in the rail.
-        _serviceTabs.add(com.rk.ai.AiTab())
         _serviceTabs.add(GitTab(gitViewModel))
         currentServiceTabIndex = -1
     }

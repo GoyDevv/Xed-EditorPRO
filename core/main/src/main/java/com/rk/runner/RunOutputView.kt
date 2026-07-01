@@ -160,17 +160,24 @@ fun RunOutputView(modifier: Modifier = Modifier) {    if (!RunOutputState.isActi
 
             Column(modifier = Modifier.fillMaxWidth().height(contentHeight)) {
                 if (contentHeight > 0.dp) {
-                    SelectionContainer(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                        Text(
-                            text = RunOutputState.output,
-                            modifier =
-                                Modifier.fillMaxSize()
-                                    .verticalScroll(scrollState)
-                                    .horizontalScroll(hScrollState)
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                            style = OutputTextStyle,
-                            softWrap = false,
-                        )
+                    // Terminal-style panel: darkest surface tone + monospace, for a console feel.
+                    Surface(
+                        modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                    ) {
+                        SelectionContainer(modifier = Modifier.fillMaxSize()) {
+                            Text(
+                                text = RunOutputState.output,
+                                modifier =
+                                    Modifier.fillMaxSize()
+                                        .verticalScroll(scrollState)
+                                        .horizontalScroll(hScrollState)
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                style = OutputTextStyle,
+                                softWrap = false,
+                            )
+                        }
                     }
                     HorizontalDivider()
                     Row(

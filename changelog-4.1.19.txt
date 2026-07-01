@@ -1,0 +1,26 @@
+Xed-Editor PRO — Changelog
+Version 4.1.19 (versionCode 126)
+
+Removed the AI Agent feature entirely.
+
+>>> BUILD NOTE: verified by GitHub Actions CI (no local JDK 21 / SDK here).
+
+================================================================================
+REMOVED
+================================================================================
+- Deleted the whole AI package: core/main/src/main/java/com/rk/ai/ (AiTab, AiViewModel, AiClient,
+  AiTools, AiPrefs, AiProviders, AiMessage, AiSessionStore, AiTaskStore, AiTerminal, AiMcp,
+  AiAgentService, AiSettingsScreen, GeminiWebClient, GoogleLoginDialog).
+- Removed all wiring:
+  • core/main/.../drawer/DrawerViewModel.kt — no longer registers the AI service tab.
+  • core/main/.../settings/SettingsScreen.kt — removed the "AI Agent" category.
+  • core/main/.../settings/app/SettingsAppScreen.kt — removed the InbuiltFeatures.ai feature + toggle.
+  • core/main/.../activities/settings/SettingsRoutes.kt + SettingsNavHost.kt — removed the ai_settings route.
+  • app/src/main/AndroidManifest.xml — removed the AiAgentService <service> declaration.
+  • core/main/.../exec/ShellUtils.kt — removed runUbuntuStreaming (added only for the AI setup).
+  • core/resources/.../values/strings.xml — removed ai_agent / ai_agent_feature / ai_agent_desc.
+- Removed the AI design doc (phases.md) and the AI changelog notes (changelog-4.1.0..4.1.18.txt).
+
+- app/build.gradle.kts: 4.1.18 -> 4.1.19 (versionCode 125 -> 126).
+
+No AI Agent code, UI, settings, service, or strings remain.

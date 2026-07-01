@@ -554,9 +554,6 @@
     <string name="extension_validation_failed">Extension validation failed</string>
     <string name="general">General</string>
     <string name="advanced">Advanced</string>
-    <string name="ai_agent" translatable="false">AI Agent</string>
-    <string name="ai_agent_feature">AI Agent (in-app coding assistant)</string>
-    <string name="ai_agent_desc">Provider, API key, default model, and tool permissions</string>
     <string name="git" translatable="false">Git</string>
     <string name="git_desc">Configure version control system</string>
     <string name="credentials">Credentials</string>

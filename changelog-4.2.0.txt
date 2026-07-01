@@ -1,0 +1,27 @@
+Xed-Editor PRO — Changelog
+Version 4.2.0 (versionCode 127)
+
+UI animation overhaul: animated splash screen, polished build-output terminal, animated expand button.
+
+>>> BUILD NOTE: verified by GitHub Actions CI (no local JDK 21 / SDK here). Animations use
+>>> graphicsLayer (GPU) and Compose springs — no recomposition thrash, smooth and lag-free.
+
+================================================================================
+NEW in 4.2.0
+================================================================================
+1) Animated splash screen (core/main/.../activities/main/SplashScreen.kt, new)
+   - "XED PRO" fades in while rising from below and typing out letter-by-letter, holds briefly, then
+     zooms toward the viewer and fades away — revealing the main UI behind it for a seamless, merged
+     hand-off. Wired in MainActivity (shown once per launch over the app, wrapped in XedTheme so it
+     matches your theme). All motion via graphicsLayer for smoothness.
+
+2) Build output — terminal look (core/main/.../runner/RunOutputView.kt)
+   - The expanded output now sits in a rounded "terminal" panel (darkest surface tone) with the
+     monospace console font, keeping the existing smooth spring open/close, the animated streaming
+     "latest line" (slide + fade between updates), and smooth auto-scroll.
+
+3) Expand button animation (core/main/.../drawer/Drawer.kt)
+   - The drawer maximize/restore button (below Git) now springs: the chevron rotates 180° with a
+     lively bounce and a subtle pop-scale when toggled.
+
+- app/build.gradle.kts: 4.1.19 -> 4.2.0 (versionCode 126 -> 127).
