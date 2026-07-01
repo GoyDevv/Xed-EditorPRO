@@ -5,6 +5,9 @@ import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,6 +50,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -305,20 +309,35 @@ fun DrawerContent(fullscreen: Boolean) {
                             // Maximize / restore the drawer width. Only meaningful for the modal
                             // (overlay) drawer; the permanent drawer has a fixed layout.
                             if (!isPermanentDrawer) {
+                                // Springy rotate + pop when toggled — a lively "expand" gesture.
+                                val expandRotation by
+                                    animateFloatAsState(
+                                        targetValue = if (isDrawerExpanded) 180f else 0f,
+                                        animationSpec = spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessLow),
+                                        label = "expandRotation",
+                                    )
+                                val expandScale by
+                                    animateFloatAsState(
+                                        targetValue = if (isDrawerExpanded) 1.15f else 1f,
+                                        animationSpec = spring(dampingRatio = 0.4f, stiffness = Spring.StiffnessMedium),
+                                        label = "expandScale",
+                                    )
                                 NavigationRailItem(
                                     selected = false,
                                     icon = {
                                         Icon(
-                                            painter =
-                                                painterResource(
-                                                    if (isDrawerExpanded) drawables.chevron_left
-                                                    else drawables.chevron_right
-                                                ),
+                                            painter = painterResource(drawables.chevron_right),
                                             contentDescription =
                                                 stringResource(
                                                     if (isDrawerExpanded) strings.collapse_drawer
                                                     else strings.expand_drawer
                                                 ),
+                                            modifier =
+                                                Modifier.graphicsLayer {
+                                                    rotationZ = expandRotation
+                                                    scaleX = expandScale
+                                                    scaleY = expandScale
+                                                },
                                         )
                                     },
                                     onClick = { isDrawerExpanded = !isDrawerExpanded },

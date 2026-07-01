@@ -9,9 +9,16 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -149,17 +156,23 @@ class MainActivity : AppCompatActivity() {
                     MainRoutes.Disclaimer.route
                 }
             }
-            NavHost(
-                navController = navController,
-                startDestination = startDestination,
-            ) {
-                composable(MainRoutes.Main.route) {
-                    MainContentHost()
-                    LaunchedEffect(Unit) {
-                        FilePermission.verifyStoragePermission(this@MainActivity)
+            var splashDone by rememberSaveable { mutableStateOf(false) }
+            Box(modifier = Modifier.fillMaxSize()) {
+                NavHost(
+                    navController = navController,
+                    startDestination = startDestination,
+                ) {
+                    composable(MainRoutes.Main.route) {
+                        MainContentHost()
+                        LaunchedEffect(Unit) {
+                            FilePermission.verifyStoragePermission(this@MainActivity)
+                        }
                     }
+                    composable(MainRoutes.Disclaimer.route) { DisclaimerScreen(navController) { finishAffinity() } }
                 }
-                composable(MainRoutes.Disclaimer.route) { DisclaimerScreen(navController) { finishAffinity() } }
+                if (!splashDone) {
+                    com.rk.theme.XedTheme { SplashScreen(onFinish = { splashDone = true }) }
+                }
             }
         }
     }

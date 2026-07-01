@@ -259,8 +259,15 @@ class Terminal : AppCompatActivity() {
                             progressText =
                                 "${strings.downloading.getString()} ${fileName.removeSuffix(".so").removePrefix("lib")} ($downloadedMB/$totalMB MB)"
                         }
+
+                        // Mirror sandbox download progress into the Auto Setup full-screen UI.
+                        if (AutoSetupState.isActive) AutoSetupState.onDownload(downloaded, total)
                     },
-                    onComplete = { installNextStage = it },
+                    onComplete = {
+                        installNextStage = it
+                        // Download finished → sandbox is now extracted/prepared by the session.
+                        if (AutoSetupState.isActive) AutoSetupState.onExtracting()
+                    },
                     onError = { error, file ->
                         when (error) {
                             is UnknownHostException -> {

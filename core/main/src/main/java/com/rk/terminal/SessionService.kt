@@ -104,7 +104,9 @@ class SessionService : Service() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
-        if (Settings.terminate_sessions_on_exit) {
+        // Always tear down (and remove the notification) if the user swipes the app away during
+        // Auto Setup — that's a one-shot flow, not a backgrounded shell the user wants to keep.
+        if (Settings.terminate_sessions_on_exit || AutoSetupState.isActive) {
             actionExit()
         }
     }

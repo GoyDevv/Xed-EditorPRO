@@ -27,13 +27,10 @@ command -v apt-get >/dev/null 2>&1 || APT="apt"
 emit_progress 3 "Preparing setup"
 echo "Starting Xed-Editor auto setup..."
 
-emit_progress 8 "Updating package lists"
+emit_progress 10 "Updating package lists"
 $APT update -y 2>&1 || fail "Failed to update package lists (apt update)."
 
-emit_progress 22 "Upgrading installed packages"
-$APT upgrade -y 2>&1 || fail "Failed to upgrade packages (apt upgrade)."
-
-emit_progress 38 "Installing core tools (curl, git, wget)"
+emit_progress 28 "Installing core tools (curl, git, wget)"
 $APT install -y curl git wget tar unzip zip nano ca-certificates 2>&1 || fail "Failed to install core tools."
 
 emit_progress 52 "Installing build tools (compiler, make)"
