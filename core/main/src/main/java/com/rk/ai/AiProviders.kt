@@ -64,25 +64,8 @@ object AiProviders {
             id = "gemini_web",
             label = "Gemini (Google login)",
             baseUrl = "",
-            defaultModel = "gemini",
+            defaultModel = "Gemini 3.5 Flash",
             signupUrl = "https://gemini.google.com",
-        )
-
-    /**
-     * Kiro gateway. Kiro's `ksk_…` key is consumed by the kiro-cli binary and has no documented
-     * public REST endpoint, so to reach Kiro through this agent you point it at a small
-     * **Kiro→OpenAI gateway** (any service that translates OpenAI `/models` + `/chat/completions`
-     * calls into Kiro). The base URL is therefore editable; paste your gateway's base (…/v1) and
-     * use your `ksk_` (or the gateway's) key. Models are listed live from the gateway.
-     */
-    val KIRO =
-        AiProvider(
-            id = "kiro",
-            label = "Kiro (gateway)",
-            baseUrl = "http://localhost:3000/v1",
-            editableBaseUrl = true,
-            defaultModel = "claude-sonnet-4",
-            signupUrl = "https://kiro.dev",
         )
 
     val CUSTOM =
@@ -95,7 +78,7 @@ object AiProviders {
             signupUrl = "",
         )
 
-    val all = listOf(OPENROUTER, OPENAI, GEMINI, GEMINI_WEB, KIRO, CUSTOM)
+    val all = listOf(OPENROUTER, OPENAI, GEMINI, GEMINI_WEB, CUSTOM)
 
     fun byId(id: String?): AiProvider = all.firstOrNull { it.id == id } ?: OPENROUTER
 
@@ -106,7 +89,7 @@ object AiProviders {
             m.contains("gpt-4o") || m.contains("gpt-4.1") -> 128_000
             m.contains("o1") || m.contains("o3") -> 200_000
             m.contains("claude") -> 200_000
-            m.contains("gemini-1.5") || m.contains("gemini-2") -> 1_000_000
+            m.contains("gemini-1.5") || m.contains("gemini-2") || m.contains("gemini") -> 1_000_000
             m.contains("gpt-3.5") -> 16_385
             else -> 128_000
         }

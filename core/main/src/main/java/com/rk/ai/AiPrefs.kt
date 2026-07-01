@@ -32,7 +32,7 @@ object AiPrefs {
         set(value) = Preference.setString(SELECTED_MODEL, value)
 
     /**
-     * Per-provider editable base URL (used by Custom and Kiro gateway). The legacy single
+     * Per-provider editable base URL (used by the Custom provider). The legacy single
      * [customBaseUrl] is migrated transparently for the "custom" provider.
      */
     fun getBaseUrl(providerId: String): String {
@@ -97,14 +97,6 @@ object AiPrefs {
         get() = Preference.getString(MCP_SERVERS, "")
         set(value) = Preference.setString(MCP_SERVERS, value)
 
-    // --- Kiro CLI -----------------------------------------------------------------------------
-    private const val KIRO_CLI_PATH = "ai_kiro_cli_path"
-
-    /** Resolved path to the kiro-cli binary inside the sandbox (set by automatic setup). */
-    var kiroCliPath: String
-        get() = Preference.getString(KIRO_CLI_PATH, "")
-        set(value) = Preference.setString(KIRO_CLI_PATH, value.trim())
-
     // --- Gemini (Google login) cookies --------------------------------------------------------
     private const val GEMINI_PSID = "ai_gemini_psid"
     private const val GEMINI_PSIDTS = "ai_gemini_psidts"
@@ -116,4 +108,11 @@ object AiPrefs {
     var geminiPsidts: String
         get() = Preference.getString(GEMINI_PSIDTS, "")
         set(value) = Preference.setString(GEMINI_PSIDTS, value.trim())
+
+    private const val GEMINI_ACCOUNT = "ai_gemini_account"
+
+    /** Human-readable Google account label (email/name) for the Gemini login, if detected. */
+    var geminiAccount: String
+        get() = Preference.getString(GEMINI_ACCOUNT, "")
+        set(value) = Preference.setString(GEMINI_ACCOUNT, value.trim())
 }

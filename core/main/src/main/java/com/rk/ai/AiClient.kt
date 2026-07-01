@@ -34,7 +34,6 @@ object AiClient {
     /** Cancels the in-flight chat request (used by stop). */
     fun cancel() {
         runCatching { currentCall?.cancel() }
-        runCatching { KiroClient.cancel() }
         runCatching { GeminiWebClient.cancel() }
     }
 
@@ -43,9 +42,6 @@ object AiClient {
     /** Verifies the key and lists model ids via GET {base}/models. Throws on failure. */
     suspend fun listModels(provider: AiProvider, key: String): List<String> =
         withContext(Dispatchers.IO) {
-            if (provider.id == AiProviders.KIRO.id && AiPrefs.getBaseUrl(provider.id).isBlank()) {
-                return@withContext KiroClient.verify()
-            }
             if (provider.id == AiProviders.GEMINI_WEB.id) {
                 return@withContext GeminiWebClient.verify()
             }
@@ -112,10 +108,6 @@ object AiClient {
         onDelta: (String) -> Unit,
     ): ChatResult =
         withContext(Dispatchers.IO) {
-            // Kiro native mode: talk to AWS CodeWhisperer directly (no gateway) when no base URL is set.
-            if (provider.id == AiProviders.KIRO.id && AiPrefs.getBaseUrl(provider.id).isBlank()) {
-                return@withContext KiroClient.chatStream(model, messages, tools, onDelta)
-            }
             // Gemini via Google login (consumer web endpoint, cookie auth).
             if (provider.id == AiProviders.GEMINI_WEB.id) {
                 return@withContext GeminiWebClient.chatStream(model, messages, tools, onDelta)

@@ -90,18 +90,24 @@ class AiViewModel : ViewModel() {
     val provider: AiProvider
         get() = AiProviders.byId(providerId)
 
-    /** Kiro native mode: Kiro selected and no gateway base URL configured. */
-    fun isKiroNative(): Boolean =
-        providerId == AiProviders.KIRO.id && AiPrefs.getBaseUrl(providerId).isBlank()
-
-    /** Providers that authenticate without an API key (Kiro native, Gemini Google login). */
-    fun isKeylessProvider(): Boolean = isKiroNative() || providerId == AiProviders.GEMINI_WEB.id
+    /** Providers that authenticate without an API key (Gemini Google login). */
+    fun isKeylessProvider(): Boolean = providerId == AiProviders.GEMINI_WEB.id
 
     /** Whether the current provider is ready to use (has a key, or a keyless login is present). */
     fun isConfigured(): Boolean =
         AiPrefs.hasKey(providerId) ||
-            (isKiroNative() && KiroAuth.hasDiscoverableCreds()) ||
             (providerId == AiProviders.GEMINI_WEB.id && GeminiWebAuth.hasCreds())
+
+    /** Short label of the current connection method, shown in the chat top bar. */
+    fun methodLabel(): String {
+        val p = provider.label
+        return when {
+            providerId == AiProviders.GEMINI_WEB.id ->
+                p + " · " + AiPrefs.geminiAccount.ifBlank { if (GeminiWebAuth.hasCreds()) "signed in" else "not signed in" }
+            AiPrefs.hasKey(providerId) -> "$p · API key"
+            else -> p
+        }
+    }
 
     /** Session context usage as a percentage of the model's context window. */
     val percentUsed: Int

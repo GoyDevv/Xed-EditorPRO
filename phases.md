@@ -263,3 +263,19 @@ cookies instead of an API key:
 ⚠️ Experimental: undocumented private Google protocol (changes often), no native tools (text shim),
 likely against Google ToS. The Gemini API-key provider remains the reliable, tool-native path. Needs
 on-device testing (WebView cookie capture + response parsing can't be verified in the dev env).
+
+
+---
+
+## 9. 4.1.17 — Kiro removed; Gemini (Google login) reworked
+
+- **Kiro removed entirely** (files + provider + routing + UI). Sections 5–7 above are historical only.
+- **Gemini (Google login)** is now keyless and coherent:
+  - No API key field — provider dialog offers only "Sign in with Google".
+  - `GoogleLoginDialog` is an account screen: shows the account, checks Gemini availability (guides
+    the user to accept terms if needed), and offers **Sign out / delete login** (also in AI settings).
+  - `GeminiWebClient.chatStream` now **streams** the batchexecute response line-by-line (real-time
+    text; fixes the previous hang) and shows an explicit error if nothing parses.
+  - Model picker lists real Gemini models; the chat header shows the active method
+    (`AiViewModel.methodLabel`).
+  - Cookies/account persist in `AiPrefs`.

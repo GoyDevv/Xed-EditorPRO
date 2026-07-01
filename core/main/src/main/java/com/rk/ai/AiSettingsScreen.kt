@@ -94,6 +94,31 @@ fun AiSettingsScreen() {
             )
         }
 
+        PreferenceGroup(heading = "Gemini (Google login)") {
+            @Suppress("UNUSED_EXPRESSION") rev
+            if (GeminiWebAuth.hasCreds()) {
+                SettingsItem(
+                    label = "Signed in",
+                    description = AiPrefs.geminiAccount.ifBlank { "Google account" } + "  ·  tap to sign out",
+                    showSwitch = false,
+                    default = false,
+                    sideEffect = {
+                        GeminiWebAuth.clear()
+                        rev++
+                        toast("Signed out of Gemini")
+                    },
+                )
+            } else {
+                SettingsItem(
+                    label = "Not signed in",
+                    description = "Sign in from the AI tab → provider \"Gemini (Google login)\".",
+                    showSwitch = false,
+                    default = false,
+                    sideEffect = {},
+                )
+            }
+        }
+
         PreferenceGroup(heading = "MCP servers") {
             @Suppress("UNUSED_EXPRESSION") rev
             val servers = AiMcp.servers()

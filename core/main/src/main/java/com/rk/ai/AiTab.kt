@@ -92,7 +92,6 @@ private fun AiScreen(modifier: Modifier) {
 
     var showAddKey by remember { mutableStateOf(false) }
     var showSessions by remember { mutableStateOf(false) }
-    var showKiroSetup by remember { mutableStateOf(false) }
     var showGoogleLogin by remember { mutableStateOf(false) }
 
     // Auto-maximize the drawer for the chat, and ensure a session exists.
@@ -106,11 +105,6 @@ private fun AiScreen(modifier: Modifier) {
         if (!vm.isConfigured()) {
             SetupPrompt(
                 onAdd = { showAddKey = true },
-                onKiroSetup = {
-                    vm.selectProvider(AiProviders.KIRO.id)
-                    KiroSetup.reset()
-                    showKiroSetup = true
-                },
                 onGoogleLogin = {
                     vm.selectProvider(AiProviders.GEMINI_WEB.id)
                     showGoogleLogin = true
@@ -126,13 +120,21 @@ private fun AiScreen(modifier: Modifier) {
                     IconButton(onClick = { showSessions = true }) {
                         Icon(painterResource(drawables.command_palette), contentDescription = "Chats")
                     }
-                    Text(
-                        text = vm.current?.title ?: "AI",
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = vm.current?.title ?: "AI",
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = vm.methodLabel(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     IconButton(onClick = { showAddKey = true }) {
                         Icon(painterResource(drawables.settings), contentDescription = "AI settings")
                     }
@@ -208,12 +210,6 @@ private fun AiScreen(modifier: Modifier) {
     if (showAddKey) AddKeyDialog(
         vm = vm,
         onDismiss = { showAddKey = false },
-        onAutoSetup = {
-            showAddKey = false
-            vm.selectProvider(AiProviders.KIRO.id)
-            KiroSetup.reset()
-            showKiroSetup = true
-        },
         onGoogleLogin = {
             showAddKey = false
             vm.selectProvider(AiProviders.GEMINI_WEB.id)
@@ -221,7 +217,6 @@ private fun AiScreen(modifier: Modifier) {
         },
     )
     if (showSessions) SessionsDialog(vm = vm, onDismiss = { showSessions = false })
-    if (showKiroSetup) KiroSetupDialog(vm = vm, onDismiss = { showKiroSetup = false })
     if (showGoogleLogin) GoogleLoginDialog(
         onDismiss = { showGoogleLogin = false },
         onCaptured = {
@@ -233,7 +228,7 @@ private fun AiScreen(modifier: Modifier) {
 }
 
 @Composable
-private fun SetupPrompt(onAdd: () -> Unit, onKiroSetup: () -> Unit, onGoogleLogin: () -> Unit) {
+private fun SetupPrompt(onAdd: () -> Unit, onGoogleLogin: () -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
@@ -245,12 +240,11 @@ private fun SetupPrompt(onAdd: () -> Unit, onKiroSetup: () -> Unit, onGoogleLogi
         Spacer(Modifier.size(8.dp))
         Text(
             "Connect a provider to start. Use an API key (OpenAI, Gemini, OpenRouter, custom), or sign in " +
-                "to Kiro or Gemini to use them without a key.",
+                "to Gemini with your Google account to use it without a key.",
             style = MaterialTheme.typography.bodyMedium,
         )
         Spacer(Modifier.size(16.dp))
         TextButton(onClick = onAdd) { Text("Add API key") }
-        TextButton(onClick = onKiroSetup) { Text("Set up Kiro automatically") }
         TextButton(onClick = onGoogleLogin) { Text("Sign in with Google (Gemini)") }
     }
 }
@@ -726,7 +720,7 @@ private fun SessionsDialog(vm: AiViewModel, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun AddKeyDialog(vm: AiViewModel, onDismiss: () -> Unit, onAutoSetup: () -> Unit = {}, onGoogleLogin: () -> Unit = {}) {
+private fun AddKeyDialog(vm: AiViewModel, onDismiss: () -> Unit, onGoogleLogin: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     var providerId by remember { mutableStateOf(vm.providerId) }
     var providerMenu by remember { mutableStateOf(false) }
@@ -736,10 +730,11 @@ private fun AddKeyDialog(vm: AiViewModel, onDismiss: () -> Unit, onAutoSetup: ()
     var status by remember { mutableStateOf<String?>(null) }
 
     val provider = AiProviders.byId(providerId)
+    val isGeminiWeb = provider.id == AiProviders.GEMINI_WEB.id
 
     AlertDialog(
         onDismissRequest = { if (!verifying) onDismiss() },
-        title = { Text("AI provider & key") },
+        title = { Text("AI provider") },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Box {
@@ -755,86 +750,81 @@ private fun AddKeyDialog(vm: AiViewModel, onDismiss: () -> Unit, onAutoSetup: ()
                                     providerId = p.id
                                     key = AiPrefs.getKey(p.id)
                                     baseUrl = AiPrefs.getBaseUrl(p.id)
+                                    status = null
                                     providerMenu = false
                                 },
                             )
                         }
                     }
                 }
-                if (provider.editableBaseUrl) {
+
+                if (isGeminiWeb) {
+                    Spacer(Modifier.size(6.dp))
+                    Text(
+                        "Sign in with your Google account to use Gemini without an API key. Experimental — " +
+                            "Google's web Gemini has no native tool-calling (a text protocol is used) and may change.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    if (provider.editableBaseUrl) {
+                        OutlinedTextField(
+                            value = baseUrl,
+                            onValueChange = { baseUrl = it },
+                            label = { Text("Base URL (…/v1)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.size(8.dp))
+                    }
                     OutlinedTextField(
-                        value = baseUrl,
-                        onValueChange = { baseUrl = it },
-                        label = { Text("Base URL (…/v1)") },
+                        value = key,
+                        onValueChange = { key = it },
+                        label = { Text("API key") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    Spacer(Modifier.size(8.dp))
+                    if (provider.signupUrl.isNotBlank()) {
+                        Spacer(Modifier.size(6.dp))
+                        Text("Get a key: ${provider.signupUrl}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
-                OutlinedTextField(
-                    value = key,
-                    onValueChange = { key = it },
-                    label = { Text(if (provider.id == AiProviders.KIRO.id) "Refresh token (optional)" else "API key") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                if (provider.id == AiProviders.KIRO.id) {
-                    Spacer(Modifier.size(6.dp))
-                    Text(
-                        "Kiro auto-login: leave blank to use your kiro-cli / Kiro IDE login automatically " +
-                            "(tap Verify to detect). If you're not logged in, run \"kiro-cli login\" in the terminal, " +
-                            "or paste a refresh token here. Set a Base URL only if you run an external gateway.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    TextButton(onClick = onAutoSetup) { Text("Automatic setup (install + sign in)") }
-                }
-                if (provider.id == AiProviders.GEMINI_WEB.id) {
-                    Spacer(Modifier.size(6.dp))
-                    Text(
-                        "Gemini (Google login): sign in with your Google account to use consumer Gemini " +
-                            "without an API key. Experimental — no native tool-calling (a text protocol is used) " +
-                            "and Google may change it. No key needed here.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    TextButton(onClick = onGoogleLogin) { Text("Sign in with Google") }
-                }
+
                 status?.let {
                     Spacer(Modifier.size(8.dp))
                     Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
-                if (provider.signupUrl.isNotBlank()) {
-                    Spacer(Modifier.size(6.dp))
-                    Text("Get a key: ${provider.signupUrl}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
             }
         },
         confirmButton = {
-            TextButton(
-                enabled = !verifying && (key.isNotBlank() || provider.id == AiProviders.KIRO.id || provider.id == AiProviders.GEMINI_WEB.id),
-                onClick = {
-                    verifying = true
-                    status = null
-                    if (provider.editableBaseUrl) AiPrefs.setBaseUrl(provider.id, baseUrl)
-                    scope.launch {
-                        runCatching { AiClient.listModels(provider, key.trim()) }
-                            .onSuccess { models ->
-                                AiPrefs.setKey(provider.id, key)
-                                vm.selectProvider(provider.id)
-                                if (models.isNotEmpty()) vm.selectModel(models.first())
-                                vm.refreshModels()
-                                verifying = false
-                                onDismiss()
-                            }
-                            .onFailure {
-                                verifying = false
-                                status = "Verification failed: ${it.message}"
-                            }
-                    }
-                },
-            ) {
-                Text(if (verifying) "Verifying…" else "Verify & save")
+            if (isGeminiWeb) {
+                TextButton(onClick = onGoogleLogin) { Text("Sign in with Google") }
+            } else {
+                TextButton(
+                    enabled = !verifying && key.isNotBlank(),
+                    onClick = {
+                        verifying = true
+                        status = null
+                        if (provider.editableBaseUrl) AiPrefs.setBaseUrl(provider.id, baseUrl)
+                        scope.launch {
+                            runCatching { AiClient.listModels(provider, key.trim()) }
+                                .onSuccess { models ->
+                                    AiPrefs.setKey(provider.id, key)
+                                    vm.selectProvider(provider.id)
+                                    if (models.isNotEmpty()) vm.selectModel(models.first())
+                                    vm.refreshModels()
+                                    verifying = false
+                                    onDismiss()
+                                }
+                                .onFailure {
+                                    verifying = false
+                                    status = "Verification failed: ${it.message}"
+                                }
+                        }
+                    },
+                ) {
+                    Text(if (verifying) "Verifying…" else "Verify & save")
+                }
             }
         },
         dismissButton = { TextButton(enabled = !verifying, onClick = onDismiss) { Text("Cancel") } },
