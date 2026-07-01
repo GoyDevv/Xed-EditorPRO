@@ -145,7 +145,7 @@ class GitTab(val viewModel: GitViewModel) : DrawerTab() {
         val commitDescription = viewModel.currentRoot.value?.absolutePath?.let { viewModel.commitDescriptions[it] } ?: ""
         val amend = viewModel.currentRoot.value?.absolutePath?.let { viewModel.amends[it] } ?: false
 
-        fun refreshEditors() {
+        suspend fun refreshEditors() {
             MainActivity.instance?.viewModel?.tabs?.filterIsInstance<EditorTab>()?.forEach {
                 if (findGitRoot(it.file.getAbsolutePath()) != null) it.refresh()
             }

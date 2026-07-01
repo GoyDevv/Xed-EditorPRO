@@ -1,38 +1,40 @@
 Xed-Editor PRO — Changelog
 Version 4.2.1 (versionCode 128)
 
-Smooth drawer expand + Git tab UI overhaul (stage 1: local/JGit).
+Git tab overhaul (+ GitHub integration), smoother drawer/splash, and several UX fixes.
 
 >>> BUILD NOTE: verified by GitHub Actions CI (no local JDK 21 / SDK here).
 
 ================================================================================
-FIXED
+GIT TAB — overhaul (core/main/.../git/GitTab.kt, GitViewModel.kt, GitHubCli.kt)
 ================================================================================
-- Drawer expand/collapse no longer "snaps": the sheet width now glides via an animated spring
-  (core/main/.../components/ResponsiveDrawer.kt, getDrawerWidth).
+- Tabbed layout with animated horizontal transitions: Code · Diff · Actions.
+- Code: change lists (Conflicts / Changes / Untracked); tapping a file opens it in the Diff tab.
+- Diff: collapsible per-file cards with CLI-style coloring (green + / red - with tinted rows) and a
+  +N / -M line count per file; diffs load lazily and refresh on each status sync.
+- Commit: separate Commit title AND Description fields (was one); message = "title\n\ndescription".
+- Warnings: explicit force-push warning; discard confirmation retained.
+- Overflow (⋮): Origin manager, Create pull request, and a Git settings shortcut (deep-link).
+
+GitHub (via the token in Git settings, run as short-lived auto-killed curl calls, toast on done):
+- Origin manager: set origin URL, CREATE a new repo (name + private) and set it as origin, and
+  LOAD + SEARCH your repositories to pick one as origin.
+- Create pull request: base branch + title (prefilled) + description; opens the PR and the browser.
+- Actions tab: lists recent workflow runs (status dot: running / success / failure, branch);
+  tapping a run offers to open it on GitHub. Guides you to Git settings when no token / non-GitHub.
 
 ================================================================================
-GIT TAB — overhaul (core/main/.../git/GitTab.kt, GitViewModel.kt)
+FIXES / UX
 ================================================================================
-- Tabbed layout with animated horizontal transitions: **Code · Diff · Actions**.
-- Code tab: the change lists (Conflicts / Changes / Untracked) as before; tapping a file now opens it
-  in the Diff tab (expanded) instead of a modal.
-- Diff tab: **collapsible per-file cards** showing the unified diff with CLI-style coloring — green
-  "+" adds and red "-" removals with tinted backgrounds — plus a **+N / -M line count** per file.
-  Diffs load lazily and cache; the cache clears on every status sync.
-- Commit box now has a **Commit title** AND a separate **Description** field (was a single field);
-  the commit message is composed as "title\n\ndescription".
-- Warnings: an explicit force-push warning in the push dialog; existing discard confirmation kept.
-- Overflow menu (⋮): **Origin manager** and a **Git settings** shortcut (deep-links to Git settings).
-- Origin manager dialog: view/set the `origin` remote URL (JGit) and open the repo on the web.
-- Actions tab: opens your repo's Actions on GitHub in the browser + a Git-settings shortcut.
+- Drawer expand/collapse now GLIDES (animated spring width) instead of snapping.
+- Sync/Run Stop bug: pressing Stop (or dismissing the output with X) now force-kills the build and no
+  longer shows a false "Finished successfully" or marks the project synced. (RunService/RunOutputState)
+- Empty editor state: instead of "Click to open a file", it now shows the PROJECT NAME, its PATH, the
+  detected majority language (GitHub-style), and an "Open file tree" button. (MainContent.kt)
+- The "+" toolbar menu: fixed the Temp file dialog that vanished instantly; added "New file in project
+  root" which accepts slash paths (e.g. src/utils/File.kt) and creates any missing folders. (GlobalToolbarActions.kt)
+- Splash screen: dark backdrop (no longer washed-out), the app's default font, and a smoother
+  staggered letter-reveal + spring + zoom, all GPU-driven (~60fps).
+- Build output uses the app's default font (no longer monospace).
 
-- app/build.gradle.kts: 4.2.0 -> 4.2.1 (versionCode 127 -> 128).
-
-================================================================================
-NEXT STAGE (needs your GitHub token + on-device testing)
-================================================================================
-The GitHub-API features from the request are the next stage (they require the PAT and network calls
-that can't be verified in this dev env): in-app create-repo & repo search, in-app PR creation /
-"push in current PR", and the live Actions runs list with expandable CI logs + pass/fail open-on-web
-dialogs. The UI entry points (Actions tab, Origin manager) are in place to host them.
+No version change (stayed at 4.2.1 per request).
