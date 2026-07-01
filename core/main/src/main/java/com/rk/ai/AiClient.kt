@@ -35,6 +35,7 @@ object AiClient {
     fun cancel() {
         runCatching { currentCall?.cancel() }
         runCatching { KiroClient.cancel() }
+        runCatching { GeminiWebClient.cancel() }
     }
 
     data class ChatResult(val message: AiMessage, val totalTokens: Int)
@@ -44,6 +45,9 @@ object AiClient {
         withContext(Dispatchers.IO) {
             if (provider.id == AiProviders.KIRO.id && AiPrefs.getBaseUrl(provider.id).isBlank()) {
                 return@withContext KiroClient.verify()
+            }
+            if (provider.id == AiProviders.GEMINI_WEB.id) {
+                return@withContext GeminiWebClient.verify()
             }
             val req =
                 Request.Builder()
@@ -111,6 +115,10 @@ object AiClient {
             // Kiro native mode: talk to AWS CodeWhisperer directly (no gateway) when no base URL is set.
             if (provider.id == AiProviders.KIRO.id && AiPrefs.getBaseUrl(provider.id).isBlank()) {
                 return@withContext KiroClient.chatStream(model, messages, tools, onDelta)
+            }
+            // Gemini via Google login (consumer web endpoint, cookie auth).
+            if (provider.id == AiProviders.GEMINI_WEB.id) {
+                return@withContext GeminiWebClient.chatStream(model, messages, tools, onDelta)
             }
             val payload =
                 JSONObject().apply {

@@ -104,4 +104,16 @@ object AiPrefs {
     var kiroCliPath: String
         get() = Preference.getString(KIRO_CLI_PATH, "")
         set(value) = Preference.setString(KIRO_CLI_PATH, value.trim())
+
+    // --- Gemini (Google login) cookies --------------------------------------------------------
+    private const val GEMINI_PSID = "ai_gemini_psid"
+    private const val GEMINI_PSIDTS = "ai_gemini_psidts"
+
+    var geminiPsid: String
+        get() = Preference.getString(GEMINI_PSID, "")
+        set(value) = Preference.setString(GEMINI_PSID, value.trim())
+
+    var geminiPsidts: String
+        get() = Preference.getString(GEMINI_PSIDTS, "")
+        set(value) = Preference.setString(GEMINI_PSIDTS, value.trim())
 }

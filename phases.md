@@ -243,3 +243,23 @@ automatically" on the setup screen, and a button in the provider dialog):
 Known limit: the installed kiro-cli must match the sandbox CPU arch; on ARM, if the installer is
 x86_64-only, use token login (paste a refresh token from a desktop Kiro login — no local CLI needed).
 Needs on-device testing.
+
+
+---
+
+## 8. 4.1.16 — Gemini via Google login (experimental, keyless)
+
+New provider **GEMINI_WEB** ("Gemini (Google login)") uses consumer gemini.google.com via account
+cookies instead of an API key:
+- `GoogleLoginDialog.kt` — full-screen WebView sign-in; captures `__Secure-1PSID`/`__Secure-1PSIDTS`
+  via `CookieManager` once on gemini.google.com.
+- `GeminiWebClient.kt` (+ `GeminiWebAuth`) — fetches SNlM0e/bl from `/app`, calls the internal
+  `StreamGenerate` endpoint, parses the batchexecute response. The web API has **no native
+  tool-calling**, so tools are exposed as text (`<tool_call>{…}</tool_call>`) and parsed back into
+  real `AiToolCall`s so the agent still functions (best-effort).
+- `AiClient` routes GEMINI_WEB to `GeminiWebClient`; `AiViewModel.isKeylessProvider()` /
+  `isConfigured()` treat it like Kiro native (no key). Cookies persist in `AiPrefs`.
+
+⚠️ Experimental: undocumented private Google protocol (changes often), no native tools (text shim),
+likely against Google ToS. The Gemini API-key provider remains the reliable, tool-native path. Needs
+on-device testing (WebView cookie capture + response parsing can't be verified in the dev env).

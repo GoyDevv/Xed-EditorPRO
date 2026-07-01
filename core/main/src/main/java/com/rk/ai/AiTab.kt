@@ -93,6 +93,7 @@ private fun AiScreen(modifier: Modifier) {
     var showAddKey by remember { mutableStateOf(false) }
     var showSessions by remember { mutableStateOf(false) }
     var showKiroSetup by remember { mutableStateOf(false) }
+    var showGoogleLogin by remember { mutableStateOf(false) }
 
     // Auto-maximize the drawer for the chat, and ensure a session exists.
     LaunchedEffect(Unit) {
@@ -109,6 +110,10 @@ private fun AiScreen(modifier: Modifier) {
                     vm.selectProvider(AiProviders.KIRO.id)
                     KiroSetup.reset()
                     showKiroSetup = true
+                },
+                onGoogleLogin = {
+                    vm.selectProvider(AiProviders.GEMINI_WEB.id)
+                    showGoogleLogin = true
                 },
             )
         } else {
@@ -200,19 +205,35 @@ private fun AiScreen(modifier: Modifier) {
         }
     }
 
-    if (showAddKey) AddKeyDialog(vm = vm, onDismiss = { showAddKey = false }, onAutoSetup = {
-        showAddKey = false
-        vm.selectProvider(AiProviders.KIRO.id)
-        KiroSetup.reset()
-        showKiroSetup = true
-    })
+    if (showAddKey) AddKeyDialog(
+        vm = vm,
+        onDismiss = { showAddKey = false },
+        onAutoSetup = {
+            showAddKey = false
+            vm.selectProvider(AiProviders.KIRO.id)
+            KiroSetup.reset()
+            showKiroSetup = true
+        },
+        onGoogleLogin = {
+            showAddKey = false
+            vm.selectProvider(AiProviders.GEMINI_WEB.id)
+            showGoogleLogin = true
+        },
+    )
     if (showSessions) SessionsDialog(vm = vm, onDismiss = { showSessions = false })
     if (showKiroSetup) KiroSetupDialog(vm = vm, onDismiss = { showKiroSetup = false })
+    if (showGoogleLogin) GoogleLoginDialog(
+        onDismiss = { showGoogleLogin = false },
+        onCaptured = {
+            vm.selectProvider(AiProviders.GEMINI_WEB.id)
+            vm.refreshModels()
+        },
+    )
     vm.pendingPermission?.let { req -> PermissionDialog(req = req, vm = vm) }
 }
 
 @Composable
-private fun SetupPrompt(onAdd: () -> Unit, onKiroSetup: () -> Unit) {
+private fun SetupPrompt(onAdd: () -> Unit, onKiroSetup: () -> Unit, onGoogleLogin: () -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
@@ -223,13 +244,14 @@ private fun SetupPrompt(onAdd: () -> Unit, onKiroSetup: () -> Unit) {
         Text("AI Agent", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Spacer(Modifier.size(8.dp))
         Text(
-            "Add an API key (OpenAI, Gemini, OpenRouter, or a custom OpenAI-compatible endpoint) to start chatting and let the agent use tools.",
+            "Connect a provider to start. Use an API key (OpenAI, Gemini, OpenRouter, custom), or sign in " +
+                "to Kiro or Gemini to use them without a key.",
             style = MaterialTheme.typography.bodyMedium,
         )
         Spacer(Modifier.size(16.dp))
         TextButton(onClick = onAdd) { Text("Add API key") }
-        Spacer(Modifier.size(4.dp))
         TextButton(onClick = onKiroSetup) { Text("Set up Kiro automatically") }
+        TextButton(onClick = onGoogleLogin) { Text("Sign in with Google (Gemini)") }
     }
 }
 
@@ -704,7 +726,7 @@ private fun SessionsDialog(vm: AiViewModel, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun AddKeyDialog(vm: AiViewModel, onDismiss: () -> Unit, onAutoSetup: () -> Unit = {}) {
+private fun AddKeyDialog(vm: AiViewModel, onDismiss: () -> Unit, onAutoSetup: () -> Unit = {}, onGoogleLogin: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     var providerId by remember { mutableStateOf(vm.providerId) }
     var providerMenu by remember { mutableStateOf(false) }
@@ -767,6 +789,17 @@ private fun AddKeyDialog(vm: AiViewModel, onDismiss: () -> Unit, onAutoSetup: ()
                     )
                     TextButton(onClick = onAutoSetup) { Text("Automatic setup (install + sign in)") }
                 }
+                if (provider.id == AiProviders.GEMINI_WEB.id) {
+                    Spacer(Modifier.size(6.dp))
+                    Text(
+                        "Gemini (Google login): sign in with your Google account to use consumer Gemini " +
+                            "without an API key. Experimental — no native tool-calling (a text protocol is used) " +
+                            "and Google may change it. No key needed here.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    TextButton(onClick = onGoogleLogin) { Text("Sign in with Google") }
+                }
                 status?.let {
                     Spacer(Modifier.size(8.dp))
                     Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -779,7 +812,7 @@ private fun AddKeyDialog(vm: AiViewModel, onDismiss: () -> Unit, onAutoSetup: ()
         },
         confirmButton = {
             TextButton(
-                enabled = !verifying && (key.isNotBlank() || provider.id == AiProviders.KIRO.id),
+                enabled = !verifying && (key.isNotBlank() || provider.id == AiProviders.KIRO.id || provider.id == AiProviders.GEMINI_WEB.id),
                 onClick = {
                     verifying = true
                     status = null

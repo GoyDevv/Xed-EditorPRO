@@ -54,6 +54,21 @@ object AiProviders {
         )
 
     /**
+     * Gemini via **Google account login** (consumer gemini.google.com), instead of an API key. The
+     * user signs in with Google in a WebView; the app captures the Gemini web cookies and talks to
+     * the same internal endpoint the Gemini app uses (free/consumer limits). Experimental: the web
+     * API has no native tool-calling, so tools use a text protocol, and Google may change it.
+     */
+    val GEMINI_WEB =
+        AiProvider(
+            id = "gemini_web",
+            label = "Gemini (Google login)",
+            baseUrl = "",
+            defaultModel = "gemini",
+            signupUrl = "https://gemini.google.com",
+        )
+
+    /**
      * Kiro gateway. Kiro's `ksk_…` key is consumed by the kiro-cli binary and has no documented
      * public REST endpoint, so to reach Kiro through this agent you point it at a small
      * **Kiro→OpenAI gateway** (any service that translates OpenAI `/models` + `/chat/completions`
@@ -80,7 +95,7 @@ object AiProviders {
             signupUrl = "",
         )
 
-    val all = listOf(OPENROUTER, OPENAI, GEMINI, KIRO, CUSTOM)
+    val all = listOf(OPENROUTER, OPENAI, GEMINI, GEMINI_WEB, KIRO, CUSTOM)
 
     fun byId(id: String?): AiProvider = all.firstOrNull { it.id == id } ?: OPENROUTER
 
