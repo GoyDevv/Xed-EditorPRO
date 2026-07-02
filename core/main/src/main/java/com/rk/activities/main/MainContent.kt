@@ -121,6 +121,12 @@ fun MainContent(
         }
     }
 
+    if (com.rk.projects.IdeConfigState.visible) {
+        com.rk.projects.IdeConfigState.projectRoot?.let { root ->
+            com.rk.projects.IdeConfigView(projectRoot = root, onDismiss = { com.rk.projects.IdeConfigState.close() })
+        }
+    }
+
     if (mainViewModel.isDraggingPalette || mainViewModel.showCommandPalette) {
         val lastUsedCommand = CommandProvider.getForId(Settings.last_used_command)
 

@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -68,6 +69,9 @@ private data class Dep(val name: String, val summary: String, val detectCmd: Str
 private class DepRow(val dep: Dep) {
     var state by mutableStateOf(DepState.AVAILABLE)
 }
+
+/** A pending install confirmation/warning. */
+private class DepConfirm(val title: String, val message: String, val run: () -> Unit)
 
 private val ANDROID_SDK_INSTALL =
     "set -e; " +
@@ -188,6 +192,7 @@ fun DependenciesView(projectRoot: File, onDismiss: () -> Unit) {
     val selected = remember { mutableStateMapOf<String, Boolean>() }
     val busy = DependencyInstaller.running
     var refreshKey by remember { mutableStateOf(0) }
+    var confirm by remember { mutableStateOf<DepConfirm?>(null) }
 
     suspend fun runCheck() {
         detecting = true
@@ -241,15 +246,25 @@ fun DependenciesView(projectRoot: File, onDismiss: () -> Unit) {
                     DependencyInstaller.status[it.dep.name].let { s -> s == null || s == DepInstallStatus.FAILED }
             }
         if (sel.isNotEmpty()) {
-            ensureNotificationsThen {
-                DependencyInstallService.start(context, ArrayList(sel.map { it.dep.name }), ArrayList(sel.map { it.dep.installCmd }))
+            confirm = DepConfirm(
+                "Install dependencies?",
+                "Install ${sel.size} item(s): ${sel.joinToString(", ") { it.dep.name }}.\n\nThis downloads packages over your connection — it can be large and take a while. It keeps running in the background.",
+            ) {
+                ensureNotificationsThen {
+                    DependencyInstallService.start(context, ArrayList(sel.map { it.dep.name }), ArrayList(sel.map { it.dep.installCmd }))
+                }
             }
         }
     }
 
     fun installNdk(version: String) {
-        ensureNotificationsThen {
-            DependencyInstallService.start(context, arrayListOf("Android NDK $version"), arrayListOf(ndkInstallCmd(version)))
+        confirm = DepConfirm(
+            "Install NDK $version?",
+            "Download and install this NDK version? The NDK is large (often several hundred MB). It keeps running in the background.",
+        ) {
+            ensureNotificationsThen {
+                DependencyInstallService.start(context, arrayListOf("Android NDK $version"), arrayListOf(ndkInstallCmd(version)))
+            }
         }
     }
 
@@ -358,6 +373,22 @@ fun DependenciesView(projectRoot: File, onDismiss: () -> Unit) {
                 }
             }
         }
+    }
+
+    confirm?.let { c ->
+        AlertDialog(
+            onDismissRequest = { confirm = null },
+            title = { Text(c.title) },
+            text = { Text(c.message) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val run = c.run
+                    confirm = null
+                    run()
+                }) { Text(stringResource(strings.download)) }
+            },
+            dismissButton = { TextButton(onClick = { confirm = null }) { Text(stringResource(strings.cancel)) } },
+        )
     }
 }
 

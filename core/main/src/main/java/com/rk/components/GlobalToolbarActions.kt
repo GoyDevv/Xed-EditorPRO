@@ -104,6 +104,10 @@ fun GlobalToolbarActions(viewModel: MainViewModel, drawerViewModel: DrawerViewMo
             IconButton(onClick = { com.rk.projects.DependencyManagerState.open(java.io.File(rootPathStr)) }) {
                 XedIcon(Icon.ResourceIcon(drawables.download))
             }
+            // IDE Configuration — switch toolchain versions (JDK / NDK / …) for this project.
+            IconButton(onClick = { com.rk.projects.IdeConfigState.open(java.io.File(rootPathStr)) }) {
+                XedIcon(Icon.ResourceIcon(drawables.build))
+            }
         }
 
         for (command in commands) {

@@ -57,6 +57,15 @@ launch screen, a smoother interface, and a batch of quality-of-life fixes.
   like a proper SDK manager, instead of a single confusing dropdown.
 
 ────────────────────────────────────────────────────────────────────────────────
+🛠 IDE Configuration (new)
+────────────────────────────────────────────────────────────────────────────────
+• A new toolbar view (next to Dependencies) for managing your toolchain versions.
+• Switch the active Java (JDK) version — the change applies system-wide in the sandbox.
+• Pick which installed Android NDK a project uses.
+• See your installed Python and Android build-tools versions at a glance.
+• Anything not installed offers a one-tap jump to the Dependency Manager, or to report an issue.
+
+────────────────────────────────────────────────────────────────────────────────
 🐙 GitHub (uses the token from Git settings)
 ────────────────────────────────────────────────────────────────────────────────
 • Origin manager: see the linked repository and unlink it in one tap; when nothing is linked, choose
