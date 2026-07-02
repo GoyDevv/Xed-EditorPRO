@@ -37,12 +37,14 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -55,11 +57,18 @@ import com.rk.resources.drawables
 import com.rk.resources.strings
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private enum class DepState { AVAILABLE, INSTALLED }
 
-private data class Dep(val name: String, val summary: String, val detectCmd: String, val installCmd: String)
+private data class Dep(
+    val name: String,
+    val summary: String,
+    val detectCmd: String,
+    val installCmd: String,
+    val uninstallCmd: String = "",
+)
 
 private class DepRow(val dep: Dep) {
     var state by mutableStateOf(DepState.AVAILABLE)
@@ -118,9 +127,12 @@ private val CMAKE_INSTALL =
 
 private fun catalogFor(type: DetectedProjectType): List<Dep> {
     fun apt(pkgs: String) = "apt-get update -y && apt-get install -y $pkgs"
-    val jdk21 = Dep("JDK 21", "openjdk-21-jdk", "ls -d /usr/lib/jvm/java-21* >/dev/null 2>&1", apt("openjdk-21-jdk"))
-    val jdk17 = Dep("JDK 17", "openjdk-17-jdk", "ls -d /usr/lib/jvm/java-17* >/dev/null 2>&1", apt("openjdk-17-jdk"))
-    val git = Dep("Git", "git", "command -v git >/dev/null 2>&1", apt("git"))
+    fun aptRm(pkgs: String) = "apt-get remove -y $pkgs; apt-get autoremove -y"
+    val jdk21 =
+        Dep("JDK 21", "openjdk-21-jdk", "ls -d /usr/lib/jvm/java-21* >/dev/null 2>&1", apt("openjdk-21-jdk"), aptRm("openjdk-21-jdk"))
+    val jdk17 =
+        Dep("JDK 17", "openjdk-17-jdk", "ls -d /usr/lib/jvm/java-17* >/dev/null 2>&1", apt("openjdk-17-jdk"), aptRm("openjdk-17-jdk"))
+    val git = Dep("Git", "git", "command -v git >/dev/null 2>&1", apt("git"), aptRm("git"))
     return when (type) {
         DetectedProjectType.FABRIC_MOD,
         DetectedProjectType.FORGE_MOD,
@@ -135,22 +147,25 @@ private fun catalogFor(type: DetectedProjectType): List<Dep> {
                     "cmdline-tools · platform-tools · platform + build-tools (large)",
                     "test -x \"${'$'}HOME/android-sdk/platform-tools/adb\"",
                     ANDROID_SDK_INSTALL,
+                    "rm -rf \"${'$'}HOME/android-sdk\"",
                 ),
                 Dep(
                     "Android NDK",
                     "Native Development Kit (choose versions below)",
                     "ls \"${'$'}HOME/android-sdk/ndk\"/*/source.properties >/dev/null 2>&1",
                     ndkInstallCmd(NDK_LATEST),
+                    "rm -rf \"${'$'}HOME/android-sdk/ndk\"",
                 ),
                 Dep(
                     "CMake",
                     "native C/C++ builds",
                     "ls \"${'$'}HOME/android-sdk/cmake\"/*/bin/cmake >/dev/null 2>&1",
                     CMAKE_INSTALL,
+                    "rm -rf \"${'$'}HOME/android-sdk/cmake\"",
                 ),
             )
         DetectedProjectType.NODE ->
-            listOf(Dep("Node.js & npm", "nodejs npm", "command -v node >/dev/null 2>&1", apt("nodejs npm")))
+            listOf(Dep("Node.js & npm", "nodejs npm", "command -v node >/dev/null 2>&1", apt("nodejs npm"), aptRm("nodejs npm")))
         DetectedProjectType.PYTHON ->
             listOf(
                 Dep(
@@ -158,12 +173,14 @@ private fun catalogFor(type: DetectedProjectType): List<Dep> {
                     "python3 python3-pip python3-venv",
                     "command -v python3 >/dev/null 2>&1",
                     apt("python3 python3-pip python3-venv"),
+                    aptRm("python3-pip python3-venv"),
                 ),
-                Dep("pipx", "pipx", "command -v pipx >/dev/null 2>&1", apt("pipx")),
+                Dep("pipx", "pipx", "command -v pipx >/dev/null 2>&1", apt("pipx"), aptRm("pipx")),
             )
         DetectedProjectType.RUST ->
-            listOf(Dep("Rust (cargo)", "rustc cargo", "command -v cargo >/dev/null 2>&1", apt("rustc cargo")))
-        DetectedProjectType.GO -> listOf(Dep("Go", "golang-go", "command -v go >/dev/null 2>&1", apt("golang-go")))
+            listOf(Dep("Rust (cargo)", "rustc cargo", "command -v cargo >/dev/null 2>&1", apt("rustc cargo"), aptRm("rustc cargo")))
+        DetectedProjectType.GO ->
+            listOf(Dep("Go", "golang-go", "command -v go >/dev/null 2>&1", apt("golang-go"), aptRm("golang-go")))
         DetectedProjectType.WEB,
         DetectedProjectType.UNKNOWN -> emptyList()
     }
@@ -177,6 +194,7 @@ private fun catalogFor(type: DetectedProjectType): List<Dep> {
 @Composable
 fun DependenciesView(projectRoot: File, onDismiss: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     var detecting by remember { mutableStateOf(true) }
     var terminalReady by remember { mutableStateOf(true) }
@@ -185,6 +203,7 @@ fun DependenciesView(projectRoot: File, onDismiss: () -> Unit) {
 
     val rows = remember { mutableStateListOf<DepRow>() }
     val selected = remember { mutableStateMapOf<String, Boolean>() }
+    val uninstalling = remember { mutableStateListOf<String>() }
     val busy = DependencyInstaller.running
     var refreshKey by remember { mutableStateOf(0) }
     var confirm by remember { mutableStateOf<DepConfirm?>(null) }
@@ -264,6 +283,24 @@ fun DependenciesView(projectRoot: File, onDismiss: () -> Unit) {
         }
     }
 
+    fun uninstall(dep: Dep) {
+        if (dep.uninstallCmd.isBlank() || uninstalling.contains(dep.name)) return
+        confirm =
+            DepConfirm(
+                "Uninstall ${dep.name}?",
+                "This removes ${dep.name} from the sandbox. You can reinstall it any time from here.",
+            ) {
+                uninstalling.add(dep.name)
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        ShellUtils.runUbuntu(command = arrayOf("bash", "-lc", dep.uninstallCmd), timeoutSeconds = 300L)
+                    }
+                    uninstalling.remove(dep.name)
+                    refreshKey++
+                }
+            }
+    }
+
     val selectedCount = selectableRows().count { selected[it.dep.name] == true }
     val hasSelection = selectedCount > 0
 
@@ -312,7 +349,7 @@ fun DependenciesView(projectRoot: File, onDismiss: () -> Unit) {
                                     ) {
                                         installed.forEachIndexed { i, row ->
                                             if (i > 0) RowDivider()
-                                            InstalledRow(row)
+                                            InstalledRow(row, uninstalling.contains(row.dep.name)) { uninstall(row.dep) }
                                         }
                                     }
                                 }
@@ -450,12 +487,31 @@ private fun EmptyDepsCard() {
 }
 
 @Composable
-private fun InstalledRow(row: DepRow) {
+private fun InstalledRow(row: DepRow, removing: Boolean, onUninstall: () -> Unit) {
     ToolchainRow(
         icon = iconForDep(row.dep.name),
         title = row.dep.name,
+        titleBadge = {
+            Text(
+                text = "• " + stringResource(strings.dep_installed),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Medium,
+                color = ToolchainColors.Success,
+                maxLines = 1,
+            )
+        },
         description = row.dep.summary,
-        trailing = { StatusPill(stringResource(strings.dep_installed), PillTone.SUCCESS) },
+        trailing = {
+            when {
+                removing -> StatusPill("Removing…", PillTone.PROGRESS, showSpinner = true)
+                row.dep.uninstallCmd.isNotBlank() ->
+                    OutlinedButton(onClick = onUninstall) {
+                        Icon(painterResource(drawables.close), contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Uninstall")
+                    }
+            }
+        },
     )
 }
 
@@ -494,13 +550,33 @@ private fun NdkVersionRow(version: String, installedNdk: List<String>, busy: Boo
     val svc = DependencyInstaller.status["Android NDK $version"]
     ToolchainRow(
         icon = drawables.android,
-        title = if (version == NDK_LATEST) "Latest" else version,
-        description = if (version == NDK_LATEST) "Newest available release" else null,
+        title = if (version == NDK_LATEST) "Latest NDK" else "NDK $version",
+        titleBadge =
+            if (isInstalled || svc == DepInstallStatus.DONE) {
+                {
+                    Text(
+                        text = "• " + stringResource(strings.dep_installed),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = ToolchainColors.Success,
+                        maxLines = 1,
+                    )
+                }
+            } else {
+                null
+            },
+        description =
+            if (version == NDK_LATEST) "Installs the newest available NDK release" else "Native Development Kit $version",
         trailing = {
             when {
                 svc == DepInstallStatus.INSTALLING -> StatusPill(stringResource(strings.installing), PillTone.PROGRESS, showSpinner = true)
-                isInstalled || svc == DepInstallStatus.DONE -> StatusPill(stringResource(strings.dep_installed), PillTone.SUCCESS)
-                else -> OutlinedButton(enabled = !busy, onClick = onInstall) { Text(stringResource(strings.download)) }
+                isInstalled || svc == DepInstallStatus.DONE -> {}
+                else ->
+                    OutlinedButton(enabled = !busy, onClick = onInstall) {
+                        Icon(painterResource(drawables.download), contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(strings.download))
+                    }
             }
         },
     )

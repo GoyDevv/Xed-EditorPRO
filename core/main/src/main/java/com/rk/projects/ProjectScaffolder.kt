@@ -562,6 +562,8 @@ object ProjectScaffolder {
         val pkg = config.resolvedPackageName()
         val pkgPath = pkg.replace('.', '/')
         val jdk = config.jdkVersion.ifBlank { "17" }
+        val sdk = config.resolvedCompileSdk()
+        val minSdk = config.resolvedMinSdk()
         val appNoSpace = config.name.replace(Regex("[^A-Za-z0-9]"), "").ifBlank { "App" }
         val styleName = "Theme.$appNoSpace"
 
@@ -675,12 +677,12 @@ object ProjectScaffolder {
 
             android {
                 namespace = "$pkg"
-                compileSdk = 34
+                compileSdk = $sdk
 
                 defaultConfig {
                     applicationId = "$pkg"
-                    minSdk = 24
-                    targetSdk = 34
+                    minSdk = $minSdk
+                    targetSdk = $sdk
                     versionCode = 1
                     versionName = "1.0"
 

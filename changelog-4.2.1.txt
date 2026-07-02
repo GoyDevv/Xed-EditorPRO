@@ -9,6 +9,8 @@ launch screen, a smoother interface, and a batch of quality-of-life fixes.
 • New animated launch screen: "XED PRO" reveals letter-by-letter, settles, then zooms away and
   hands off smoothly to the app.
 • Uses your selected app font and a clean dark backdrop; tuned to stay smooth on startup.
+• The launch animation now waits for the app to fully load behind it before playing, so it runs at a
+  steady 60fps with no jank or theme flashing, then reveals the ready app instantly.
 
 ────────────────────────────────────────────────────────────────────────────────
 🧭 Interface
@@ -25,6 +27,25 @@ launch screen, a smoother interface, and a batch of quality-of-life fixes.
 • New "+" option: create a file directly in the project root. You can type a path like
   src/utils/File.kt and any missing folders are created for you.
 • Fixed the temporary-file dialog that used to close by itself.
+
+────────────────────────────────────────────────────────────────────────────────
+🧰 Create Project — redesigned
+────────────────────────────────────────────────────────────────────────────────
+• Now a rounded bottom sheet instead of a plain dialog, with a clear, organized layout and room to
+  breathe.
+• New icon-based template chooser: each template (None, Python, Node.js, Static Web, Minecraft Java
+  Mod, Android/Jetpack Compose) shows its own icon and a short description, so it's obvious what you
+  get before you pick.
+• Grouped into tidy sections — Template, Project details, Package, and Options — each with its own
+  heading and icon, and text fields with leading icons.
+• Real-time package name hint: as you type the project name and author, the Package field shows the
+  exact applicationId that will be generated (e.g. com.author.appname), with a live preview card so
+  you always know what's being created.
+• Template-aware options (Minecraft mod loader / version / id, JDK version, Git init) appear only
+  when they apply, and the resolved project location and required-toolchain status are shown inline.
+• Android projects can now pick their SDK (compile/target API level) from a live list fetched from
+  Google's SDK repository — newest to oldest — instead of a fixed version, and the generated
+  build.gradle.kts uses your choice (minSdk is kept sensible automatically).
 
 ────────────────────────────────────────────────────────────────────────────────
 ▶ Build & Run
@@ -57,6 +78,10 @@ launch screen, a smoother interface, and a batch of quality-of-life fixes.
   like a proper SDK manager, instead of a single confusing dropdown.
 • Refreshed, professional layout: grouped cards with tool icons, clear status chips (Installed /
   Queued / Installing / Failed), a tidy header, and a consistent spacing rhythm throughout.
+• Installed tools now show a "• Installed" marker next to their name and a proper Uninstall button
+  (with a confirm) instead of a small label — removing a tool re-checks the sandbox automatically.
+• Clearer NDK entries: each row is labelled "NDK <version>" (and "Latest NDK"), with an installed
+  marker, so it's obvious which version you're installing.
 
 ────────────────────────────────────────────────────────────────────────────────
 🛠 IDE Configuration (new)
@@ -68,6 +93,7 @@ launch screen, a smoother interface, and a batch of quality-of-life fixes.
 • Anything not installed offers a one-tap jump to the Dependency Manager, or to report an issue.
 • Refreshed, professional layout matching the Dependency Manager: grouped cards with icons, an
   "Active" chip on the selected version, and clear per-section actions.
+• Version labels now use the app font (consistent with section titles) instead of a monospace face.
 
 ────────────────────────────────────────────────────────────────────────────────
 ⚙ Gradle build options (new, per project)
@@ -82,6 +108,8 @@ launch screen, a smoother interface, and a batch of quality-of-life fixes.
 • Additional flags: toggle any combination of common Gradle flags, including --stacktrace,
   --offline, --refresh-dependencies, --rerun-tasks, --build-cache / --no-build-cache, --parallel,
   --continue, --no-daemon and --warning-mode=all.
+• Clearer selection model: build type and log level are single-choice (Gradle accepts only one of
+  each), while the additional flags are multi-select — pick as many as you want.
 • Live "Effective command" preview shows the exact ./gradlew command the Run button will use as you
   change options.
 • These options are applied automatically to builds started from the Run button (and to Gradle

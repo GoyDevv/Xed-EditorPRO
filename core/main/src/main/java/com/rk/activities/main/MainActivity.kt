@@ -157,10 +157,11 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             var splashDone by rememberSaveable { mutableStateOf(false) }
-            var mainReady by rememberSaveable { mutableStateOf(false) }
             Box(modifier = Modifier.fillMaxSize()) {
-                if (mainReady || splashDone) {
-                    NavHost(
+                // Always compose the real app immediately so it fully loads and lays out *behind* the
+                // opaque splash. The splash itself waits for the main thread to go idle before it
+                // animates, so the launch animation never competes with heavy composition.
+                NavHost(
                     navController = navController,
                     startDestination = startDestination,
                 ) {
@@ -172,10 +173,9 @@ class MainActivity : AppCompatActivity() {
                     }
                     composable(MainRoutes.Disclaimer.route) { DisclaimerScreen(navController) { finishAffinity() } }
                 }
-                }
                 if (!splashDone) {
                     com.rk.theme.XedTheme {
-                        SplashScreen(onReady = { mainReady = true }, onFinish = { splashDone = true })
+                        SplashScreen(onFinish = { splashDone = true })
                     }
                 }
             }

@@ -264,7 +264,6 @@ private fun ConfigSection(
                 }
                 ToolchainRow(
                     title = ver.label,
-                    monospaceTitle = true,
                     trailing = {
                         when {
                             ver.active -> StatusPill("Active", PillTone.SUCCESS)
@@ -329,7 +328,7 @@ private fun GradleSettings(root: File, isAndroid: Boolean, enabled: Boolean) {
     ToolchainSection(
         icon = drawables.build,
         title = "Gradle build type",
-        subtitle = "Applied to this project's builds — Android picks assembleDebug / assembleRelease.",
+        subtitle = "Choose one — Android picks assembleDebug / assembleRelease.",
     ) {
         GradleConfig.BuildType.values().forEachIndexed { i, type ->
             if (i > 0) ConfigDivider()
@@ -358,7 +357,7 @@ private fun GradleSettings(root: File, isAndroid: Boolean, enabled: Boolean) {
     ToolchainSection(
         icon = drawables.info,
         title = "Gradle log level",
-        subtitle = "Verbosity of the build output. Default: Info.",
+        subtitle = "Choose one — verbosity of build output. Default: Info.",
     ) {
         GradleConfig.LogLevel.values().forEachIndexed { i, level ->
             if (i > 0) ConfigDivider()
@@ -387,7 +386,7 @@ private fun GradleSettings(root: File, isAndroid: Boolean, enabled: Boolean) {
     ToolchainSection(
         icon = drawables.terminal,
         title = "Gradle additional flags",
-        subtitle = "Extra options appended to every Gradle build for this project. Select any number.",
+        subtitle = "Select as many as you like — appended to every Gradle build for this project.",
     ) {
         GradleConfig.ADDITIONAL_FLAGS.forEachIndexed { i, flag ->
             if (i > 0) ConfigDivider()

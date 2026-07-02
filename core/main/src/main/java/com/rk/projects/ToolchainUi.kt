@@ -167,6 +167,7 @@ internal fun ToolchainRow(
     icon: Int? = null,
     description: String? = null,
     monospaceTitle: Boolean = false,
+    titleBadge: (@Composable () -> Unit)? = null,
     leading: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
@@ -187,14 +188,24 @@ internal fun ToolchainRow(
             Spacer(Modifier.width(14.dp))
         }
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style =
-                    if (monospaceTitle) MaterialTheme.typography.bodyLarge.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
-                    else MaterialTheme.typography.bodyLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            val titleStyle =
+                if (monospaceTitle) MaterialTheme.typography.bodyLarge.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                else MaterialTheme.typography.bodyLarge
+            if (titleBadge != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = title,
+                        style = titleStyle,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    titleBadge()
+                }
+            } else {
+                Text(text = title, style = titleStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
             if (!description.isNullOrBlank()) {
                 Spacer(Modifier.height(2.dp))
                 Text(
