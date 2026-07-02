@@ -815,8 +815,10 @@ class GitTab(val viewModel: GitViewModel) : DrawerTab() {
     @Composable
     private fun OriginManagerDialog(context: android.content.Context, onDismiss: () -> Unit) {
         val scope = rememberCoroutineScope()
-        val current = remember { viewModel.getOriginUrl() ?: "" }
-        var url by remember { mutableStateOf(current) }
+        var origin by remember { mutableStateOf(viewModel.getOriginUrl() ?: "") }
+        var mode by remember { mutableStateOf("root") } // root | url | pick | create
+        var confirmUnlink by remember { mutableStateOf(false) }
+        var urlField by remember { mutableStateOf("") }
         var newName by remember { mutableStateOf("") }
         var newPrivate by remember { mutableStateOf(true) }
         var busy by remember { mutableStateOf(false) }
@@ -824,86 +826,142 @@ class GitTab(val viewModel: GitViewModel) : DrawerTab() {
         var query by remember { mutableStateOf("") }
         var loadingRepos by remember { mutableStateOf(false) }
 
+        val linked = origin.isNotBlank()
+        val repoLabel = GitHubCli.parseOwnerRepo(origin)?.let { "${it.first}/${it.second}" } ?: origin
+        val web = remoteToWebUrl(origin.ifBlank { null })
+
         AlertDialog(
             onDismissRequest = { if (!busy) onDismiss() },
-            title = { Text("Origin manager") },
+            title = {
+                Text(
+                    when (mode) {
+                        "url" -> "Link a repository"
+                        "pick" -> "Choose a repository"
+                        "create" -> "Create a repository"
+                        else -> "Origin"
+                    }
+                )
+            },
             text = {
-                Column(modifier = Modifier.fillMaxWidth().heightIn(max = 480.dp).verticalScroll(rememberScrollState())) {
-                    Text("Remote origin", style = MaterialTheme.typography.titleSmall)
-                    OutlinedTextField(value = url, onValueChange = { url = it }, label = { Text("Origin URL") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    TextButton(enabled = url.isNotBlank(), onClick = { viewModel.setOriginUrl(url) }) { Text("Save URL") }
-
-                    HorizontalDivider(); Spacer(Modifier.height(8.dp))
-
-                    Text("Create new repository", style = MaterialTheme.typography.titleSmall)
-                    OutlinedTextField(value = newName, onValueChange = { newName = it }, label = { Text("Repository name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = newPrivate, onCheckedChange = { newPrivate = it })
-                        Text("Private")
-                    }
-                    Button(
-                        enabled = !busy && newName.isNotBlank() && GitHubCli.hasToken(),
-                        onClick = {
-                            busy = true
-                            scope.launch {
-                                GitHubCli.createRepo(newName.trim(), newPrivate)
-                                    .onSuccess { cloneUrl ->
-                                        viewModel.setOriginUrl(cloneUrl)
-                                        url = cloneUrl
-                                        toast("Repository created")
+                Column(modifier = Modifier.fillMaxWidth().heightIn(max = 460.dp).verticalScroll(rememberScrollState())) {
+                    when (mode) {
+                        "root" ->
+                            if (linked) {
+                                Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        Text("Linked to", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(repoLabel, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                     }
-                                    .onFailure { toast(it.message) }
-                                busy = false
-                            }
-                        },
-                    ) {
-                        Text(if (busy) "Working…" else "Create & set as origin")
-                    }
-                    if (!GitHubCli.hasToken()) {
-                        Text(
-                            "Add your GitHub token in Git settings (password field = a personal access token) to create/search repositories.",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-
-                    HorizontalDivider(); Spacer(Modifier.height(8.dp))
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Your repositories", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                        if (loadingRepos) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                        TextButton(
-                            enabled = !loadingRepos && GitHubCli.hasToken(),
-                            onClick = {
-                                loadingRepos = true
-                                scope.launch {
-                                    GitHubCli.listRepos().onSuccess { repos = it }.onFailure { toast(it.message) }
-                                    loadingRepos = false
                                 }
-                            },
-                        ) {
-                            Text("Load")
-                        }
-                    }
-                    if (repos.isNotEmpty()) {
-                        OutlinedTextField(value = query, onValueChange = { query = it }, label = { Text("Search") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                        repos.filter { it.fullName.contains(query, ignoreCase = true) }.take(40).forEach { repo ->
-                            TextButton(
-                                onClick = {
-                                    viewModel.setOriginUrl(repo.cloneUrl)
-                                    url = repo.cloneUrl
-                                    toast("Origin set to ${repo.fullName}")
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Text(repo.fullName, modifier = Modifier.fillMaxWidth(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Spacer(Modifier.height(12.dp))
+                                if (web != null) {
+                                    TextButton(onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, web.toUri())) } }) { Text("Open on GitHub") }
+                                }
+                                TextButton(onClick = { confirmUnlink = true }) { Text("Unlink", color = MaterialTheme.colorScheme.error) }
+                            } else {
+                                Text("No remote linked yet. Link an existing repository, or create a new one.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Spacer(Modifier.height(10.dp))
+                                OriginOption("Link an existing URL", "Paste a git remote URL") { urlField = ""; mode = "url" }
+                                OriginOption("Choose from my repositories", "Search your GitHub repos") { mode = "pick" }
+                                OriginOption("Create a new repository", "New repo on your GitHub account") { mode = "create" }
+                            }
+                        "url" ->
+                            OutlinedTextField(value = urlField, onValueChange = { urlField = it }, label = { Text("Git URL") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        "create" -> {
+                            OutlinedTextField(value = newName, onValueChange = { newName = it }, label = { Text("Repository name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(checked = newPrivate, onCheckedChange = { newPrivate = it })
+                                Text("Private")
+                            }
+                            if (!GitHubCli.hasToken()) {
+                                Text("Add your GitHub token in Git settings first.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
+                        "pick" ->
+                            if (repos.isEmpty()) {
+                                Button(
+                                    enabled = !loadingRepos && GitHubCli.hasToken(),
+                                    onClick = {
+                                        loadingRepos = true
+                                        scope.launch {
+                                            GitHubCli.listRepos().onSuccess { repos = it }.onFailure { toast(it.message) }
+                                            loadingRepos = false
+                                        }
+                                    },
+                                ) {
+                                    Text(if (loadingRepos) "Loading…" else "Load my repositories")
+                                }
+                                if (!GitHubCli.hasToken()) {
+                                    Text("Add your GitHub token in Git settings first.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            } else {
+                                OutlinedTextField(value = query, onValueChange = { query = it }, label = { Text("Search") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                                repos.filter { it.fullName.contains(query, ignoreCase = true) }.take(40).forEach { repo ->
+                                    TextButton(
+                                        onClick = { viewModel.setOriginUrl(repo.cloneUrl); origin = repo.cloneUrl; mode = "root"; toast("Linked ${repo.fullName}") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        Text(repo.fullName, modifier = Modifier.fillMaxWidth(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                }
+                            }
                     }
                 }
             },
-            confirmButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text(stringResource(strings.close)) } },
+            confirmButton = {
+                when (mode) {
+                    "url" ->
+                        TextButton(enabled = urlField.isNotBlank(), onClick = { viewModel.setOriginUrl(urlField); origin = urlField.trim(); mode = "root" }) { Text("Link") }
+                    "create" ->
+                        TextButton(
+                            enabled = !busy && newName.isNotBlank() && GitHubCli.hasToken(),
+                            onClick = {
+                                busy = true
+                                scope.launch {
+                                    GitHubCli.createRepo(newName.trim(), newPrivate)
+                                        .onSuccess { cloneUrl -> viewModel.setOriginUrl(cloneUrl); origin = cloneUrl; mode = "root"; toast("Repository created") }
+                                        .onFailure { toast(it.message) }
+                                    busy = false
+                                }
+                            },
+                        ) { Text(if (busy) "Creating…" else "Create") }
+                    else -> TextButton(enabled = !busy, onClick = onDismiss) { Text(stringResource(strings.close)) }
+                }
+            },
+            dismissButton = {
+                if (mode != "root") {
+                    TextButton(enabled = !busy, onClick = { mode = "root" }) { Text("Back") }
+                }
+            },
         )
+
+        if (confirmUnlink) {
+            AlertDialog(
+                onDismissRequest = { confirmUnlink = false },
+                title = { Text("Unlink origin") },
+                text = { Text("Remove the link to \"$repoLabel\"? Your local repository stays — only the remote is unlinked.") },
+                confirmButton = {
+                    TextButton(onClick = { viewModel.removeOrigin(); origin = ""; confirmUnlink = false }) {
+                        Text("Unlink", color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = { TextButton(onClick = { confirmUnlink = false }) { Text(stringResource(strings.cancel)) } },
+            )
+        }
+    }
+
+    @Composable
+    private fun OriginOption(title: String, subtitle: String, onClick: () -> Unit) {
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).combinedClickable(onClick = onClick),
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Text(title, style = MaterialTheme.typography.bodyLarge)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
     }
 
     @Composable

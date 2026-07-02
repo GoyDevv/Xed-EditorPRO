@@ -1,40 +1,57 @@
-Xed-Editor PRO — Changelog
-Version 4.2.1 (versionCode 128)
+Xed-Editor PRO — 4.2.1
 
-Git tab overhaul (+ GitHub integration), smoother drawer/splash, and several UX fixes.
+A major UI and Git release: a redesigned Git workspace with GitHub built in, a new animated
+launch screen, a smoother interface, and a batch of quality-of-life fixes.
 
->>> BUILD NOTE: verified by GitHub Actions CI (no local JDK 21 / SDK here).
+────────────────────────────────────────────────────────────────────────────────
+✨ Startup
+────────────────────────────────────────────────────────────────────────────────
+• New animated launch screen: "XED PRO" reveals letter-by-letter, settles, then zooms away and
+  hands off smoothly to the app.
+• Uses your selected app font and a clean dark backdrop; tuned to stay smooth on startup.
 
-================================================================================
-GIT TAB — overhaul (core/main/.../git/GitTab.kt, GitViewModel.kt, GitHubCli.kt)
-================================================================================
-- Tabbed layout with animated horizontal transitions: Code · Diff · Actions.
-- Code: change lists (Conflicts / Changes / Untracked); tapping a file opens it in the Diff tab.
-- Diff: collapsible per-file cards with CLI-style coloring (green + / red - with tinted rows) and a
-  +N / -M line count per file; diffs load lazily and refresh on each status sync.
-- Commit: separate Commit title AND Description fields (was one); message = "title\n\ndescription".
-- Warnings: explicit force-push warning; discard confirmation retained.
-- Overflow (⋮): Origin manager, Create pull request, and a Git settings shortcut (deep-link).
+────────────────────────────────────────────────────────────────────────────────
+🧭 Interface
+────────────────────────────────────────────────────────────────────────────────
+• The side drawer now glides open/closed when you expand or collapse it (no more snap).
+• The drawer's expand button springs with a little bounce.
+• When no file is open, the editor now shows a project overview instead of a bare link:
+  the project name, its path, the detected main language, and an "Open file tree" button.
+• The build output and other UI now use the font you pick in Settings.
 
-GitHub (via the token in Git settings, run as short-lived auto-killed curl calls, toast on done):
-- Origin manager: set origin URL, CREATE a new repo (name + private) and set it as origin, and
-  LOAD + SEARCH your repositories to pick one as origin.
-- Create pull request: base branch + title (prefilled) + description; opens the PR and the browser.
-- Actions tab: lists recent workflow runs (status dot: running / success / failure, branch);
-  tapping a run offers to open it on GitHub. Guides you to Git settings when no token / non-GitHub.
+────────────────────────────────────────────────────────────────────────────────
+📁 Files
+────────────────────────────────────────────────────────────────────────────────
+• New "+" option: create a file directly in the project root. You can type a path like
+  src/utils/File.kt and any missing folders are created for you.
+• Fixed the temporary-file dialog that used to close by itself.
 
-================================================================================
-FIXES / UX
-================================================================================
-- Drawer expand/collapse now GLIDES (animated spring width) instead of snapping.
-- Sync/Run Stop bug: pressing Stop (or dismissing the output with X) now force-kills the build and no
-  longer shows a false "Finished successfully" or marks the project synced. (RunService/RunOutputState)
-- Empty editor state: instead of "Click to open a file", it now shows the PROJECT NAME, its PATH, the
-  detected majority language (GitHub-style), and an "Open file tree" button. (MainContent.kt)
-- The "+" toolbar menu: fixed the Temp file dialog that vanished instantly; added "New file in project
-  root" which accepts slash paths (e.g. src/utils/File.kt) and creates any missing folders. (GlobalToolbarActions.kt)
-- Splash screen: dark backdrop (no longer washed-out), the app's default font, and a smoother
-  staggered letter-reveal + spring + zoom, all GPU-driven (~60fps).
-- Build output uses the app's default font (no longer monospace).
+────────────────────────────────────────────────────────────────────────────────
+▶ Build & Run
+────────────────────────────────────────────────────────────────────────────────
+• Refined build/run output panel with live streaming and smooth open/close.
+• Stopping a build (or closing the output) now truly stops it — the process ends, the notification
+  clears, and the app no longer keeps running the build in the background. No more false
+  "finished successfully" after you hit Stop.
 
-No version change (stayed at 4.2.1 per request).
+────────────────────────────────────────────────────────────────────────────────
+🌿 Git — full redesign
+────────────────────────────────────────────────────────────────────────────────
+• Reorganized into three tabs: Code, Diff, and Actions, with animated switching.
+• Code: your changed files, grouped (conflicts / changes / untracked). Tap a file to jump to its diff.
+• Diff: a collapsible card per file showing the changes with color — green additions, red deletions —
+  and an added/removed line count for each file.
+• Commit now has both a Title and a separate Description, like a proper commit message.
+• Clear warnings before risky actions (e.g. force push), plus the existing discard confirmation.
+
+────────────────────────────────────────────────────────────────────────────────
+🐙 GitHub (uses the token from Git settings)
+────────────────────────────────────────────────────────────────────────────────
+• Origin manager: see the linked repository and unlink it in one tap; when nothing is linked, choose
+  to link an existing URL, pick from your repositories, or create a brand-new repository.
+• Create a repository from inside the app and set it as the origin.
+• Search your GitHub repositories and link one as the origin.
+• Open a pull request (title, base branch, description) without leaving the editor.
+• Actions tab: see recent workflow runs with their status (running / success / failure) and open any
+  run on GitHub.
+• Quick shortcut to Git settings from the Git tab menu.

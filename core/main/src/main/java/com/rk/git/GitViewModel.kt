@@ -557,6 +557,22 @@ class GitViewModel : ViewModel() {
             null
         }
 
+    /** Remove the `origin` remote (unlink). */
+    fun removeOrigin() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                Git.open(currentRoot.value).use { git ->
+                    val cfg = git.repository.config
+                    cfg.unsetSection("remote", "origin")
+                    cfg.save()
+                }
+                withContext(Dispatchers.Main) { toast("Origin unlinked") }
+            } catch (e: Exception) {
+                toast(e.message)
+            }
+        }
+    }
+
     /** Set (or create) the `origin` remote URL for this repository. */
     fun setOriginUrl(url: String) {
         viewModelScope.launch(Dispatchers.IO) {

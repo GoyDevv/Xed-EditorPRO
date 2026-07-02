@@ -157,8 +157,10 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             var splashDone by rememberSaveable { mutableStateOf(false) }
+            var mainReady by rememberSaveable { mutableStateOf(false) }
             Box(modifier = Modifier.fillMaxSize()) {
-                NavHost(
+                if (mainReady || splashDone) {
+                    NavHost(
                     navController = navController,
                     startDestination = startDestination,
                 ) {
@@ -170,8 +172,11 @@ class MainActivity : AppCompatActivity() {
                     }
                     composable(MainRoutes.Disclaimer.route) { DisclaimerScreen(navController) { finishAffinity() } }
                 }
+                }
                 if (!splashDone) {
-                    com.rk.theme.XedTheme { SplashScreen(onFinish = { splashDone = true }) }
+                    com.rk.theme.XedTheme {
+                        SplashScreen(onReady = { mainReady = true }, onFinish = { splashDone = true })
+                    }
                 }
             }
         }

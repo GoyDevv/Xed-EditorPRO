@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
  * by [Animatable] + graphicsLayer (GPU, no recomposition) for smooth ~60fps playback.
  */
 @Composable
-fun SplashScreen(onFinish: () -> Unit) {
+fun SplashScreen(onReady: () -> Unit = {}, onFinish: () -> Unit) {
     val text = "XED PRO"
 
     val reveal = remember { Animatable(0f) } // drives the per-letter stagger (0..1 across letters)
@@ -45,6 +45,8 @@ fun SplashScreen(onFinish: () -> Unit) {
 
     LaunchedEffect(Unit) {
         reveal.animateTo(1f, tween(durationMillis = 760, easing = LinearOutSlowInEasing))
+        // Intro is on screen — let the (heavy) main UI start composing behind us now.
+        onReady()
         scale.animateTo(1f, spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessLow))
         delay(360)
         coroutineScope {

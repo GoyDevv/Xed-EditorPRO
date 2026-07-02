@@ -48,10 +48,7 @@ class RunService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
-            stopProcess()
-            RunOutputState.onFinished(-1)
-            stopForegroundCompat(remove = true)
-            stopSelf()
+            performStop()
             return START_NOT_STICKY
         }
 
@@ -62,7 +59,7 @@ class RunService : Service() {
         val syncProjectDir = intent?.getStringExtra(EXTRA_SYNC_DIR)
 
         startForegroundCompat(buildNotification(label, "Starting…", ongoing = true))
-        RunOutputState.setStopper { stopProcess() }
+        RunOutputState.setStopper { performStop() }
         stopped = false
 
         scope.launch {
@@ -128,6 +125,15 @@ class RunService : Service() {
         stopped = true
         runCatching { proc?.destroyForcibly() }
         proc = null
+    }
+
+    /** Full teardown: kill the build, remove the notification, and stop the foreground service. */
+    private fun performStop() {
+        stopProcess()
+        RunOutputState.onFinished(-1)
+        runCatching { notificationManager.cancel(NOTIFICATION_ID) }
+        stopForegroundCompat(remove = true)
+        stopSelf()
     }
 
     private fun maybeUpdateNotification(label: String) {

@@ -62,13 +62,18 @@ import com.rk.resources.drawables
 import com.rk.resources.strings
 import com.rk.utils.toast
 
-/** Compact style for the full output — default app font, tight line spacing so logs read as a block. */
-private val OutputTextStyle =
-    TextStyle(fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.sp)
+/**
+ * Build these from the app's theme typography (so they use the font selected in Settings) via
+ * [outputTextStyle] / [latestLineStyle] inside composition — a plain top-level TextStyle would fall
+ * back to the system font.
+ */
+@Composable
+private fun outputTextStyle() =
+    MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.sp)
 
-/** Compact style for the collapsed bar's latest line (default app font). */
-private val LatestLineStyle =
-    TextStyle(fontSize = 12.sp, lineHeight = 14.sp, letterSpacing = 0.sp)
+@Composable
+private fun latestLineStyle() =
+    MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, lineHeight = 14.sp, letterSpacing = 0.sp)
 
 /**
  * Floating build/run view shown at the bottom of the editor while a background build runs.
@@ -174,7 +179,7 @@ fun RunOutputView(modifier: Modifier = Modifier) {    if (!RunOutputState.isActi
                                         .verticalScroll(scrollState)
                                         .horizontalScroll(hScrollState)
                                         .padding(horizontal = 12.dp, vertical = 8.dp),
-                                style = OutputTextStyle,
+                                style = outputTextStyle(),
                                 softWrap = false,
                             )
                         }
@@ -270,7 +275,7 @@ private fun Header(expanded: Boolean) {
             ) { line ->
                 Text(
                     text = line,
-                    style = LatestLineStyle,
+                    style = latestLineStyle(),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
