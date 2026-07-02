@@ -5,8 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,8 +25,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -43,17 +40,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
+import androidx.compose.ui.platform.LocalContext
 import com.rk.exec.ShellUtils
 import com.rk.exec.isTerminalInstalled
 import com.rk.resources.drawables
@@ -237,14 +232,15 @@ fun DependenciesView(projectRoot: File, onDismiss: () -> Unit) {
         action()
     }
 
+    fun selectableRows() =
+        rows.filter {
+            it.dep.name != "Android NDK" &&
+                it.state != DepState.INSTALLED &&
+                DependencyInstaller.status[it.dep.name].let { s -> s == null || s == DepInstallStatus.FAILED }
+        }
+
     fun installSelected() {
-        val sel =
-            rows.filter {
-                it.dep.name != "Android NDK" &&
-                    selected[it.dep.name] == true &&
-                    it.state != DepState.INSTALLED &&
-                    DependencyInstaller.status[it.dep.name].let { s -> s == null || s == DepInstallStatus.FAILED }
-            }
+        val sel = selectableRows().filter { selected[it.dep.name] == true }
         if (sel.isNotEmpty()) {
             confirm = DepConfirm(
                 "Install dependencies?",
@@ -268,75 +264,83 @@ fun DependenciesView(projectRoot: File, onDismiss: () -> Unit) {
         }
     }
 
-    val hasSelection =
-        rows.any {
-            it.dep.name != "Android NDK" &&
-                selected[it.dep.name] == true &&
-                it.state != DepState.INSTALLED &&
-                DependencyInstaller.status[it.dep.name].let { s -> s == null || s == DepInstallStatus.FAILED }
-        }
+    val selectedCount = selectableRows().count { selected[it.dep.name] == true }
+    val hasSelection = selectedCount > 0
 
     Dialog(onDismissRequest = { if (!busy) onDismiss() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Top bar
-                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = stringResource(strings.dependencies) + if (projectType != DetectedProjectType.UNKNOWN) "  ·  ${projectType.label}" else "",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    IconButton(enabled = !busy && !detecting, onClick = { refreshKey++ }) {
-                        Icon(painterResource(drawables.refresh), contentDescription = "Re-check")
-                    }
-                    IconButton(enabled = !busy, onClick = onDismiss) {
-                        Icon(painterResource(drawables.close), contentDescription = stringResource(strings.close))
-                    }
-                }
-                HorizontalDivider()
+                ToolchainTopBar(
+                    title = stringResource(strings.dependencies),
+                    subtitle = if (projectType != DetectedProjectType.UNKNOWN) projectType.label else null,
+                    subtitleIcon = iconForProjectType(projectType),
+                    refreshEnabled = !busy && !detecting,
+                    closeEnabled = !busy,
+                    onRefresh = { refreshKey++ },
+                    onClose = onDismiss,
+                )
 
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     when {
-                        detecting ->
-                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    CircularProgressIndicator(modifier = Modifier.size(22.dp))
-                                    Spacer(Modifier.width(12.dp))
-                                    Text(stringResource(strings.detecting_project))
-                                }
-                            }
+                        detecting -> ToolchainLoading(stringResource(strings.detecting_project))
                         !terminalReady ->
-                            Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-                                Text(stringResource(strings.tools_no_terminal), color = MaterialTheme.colorScheme.error)
-                            }
+                            ToolchainMessage(
+                                icon = drawables.cloud_off,
+                                message = stringResource(strings.tools_no_terminal),
+                                tint = MaterialTheme.colorScheme.error,
+                            )
                         else -> {
                             val installed = rows.filter { it.state == DepState.INSTALLED }
                             val available = rows.filter { it.state != DepState.INSTALLED && it.dep.name != "Android NDK" }
-                            Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) {
+                            Column(
+                                modifier =
+                                    Modifier.fillMaxSize()
+                                        .verticalScroll(rememberScrollState())
+                                        .padding(horizontal = 16.dp)
+                                        .padding(bottom = 16.dp),
+                            ) {
                                 if (rows.isEmpty()) {
-                                    Text(stringResource(strings.no_dependencies_needed))
+                                    EmptyDepsCard()
                                 }
+
                                 if (installed.isNotEmpty()) {
-                                    SectionHeader("Installed")
-                                    installed.forEach { InstalledRow(it) }
-                                    Spacer(Modifier.height(12.dp))
+                                    ToolchainSection(
+                                        icon = drawables.build,
+                                        title = "Installed",
+                                        subtitle = "Ready to use in the sandbox",
+                                        trailingBadge = { StatusPill("${installed.size}", PillTone.SUCCESS) },
+                                    ) {
+                                        installed.forEachIndexed { i, row ->
+                                            if (i > 0) RowDivider()
+                                            InstalledRow(row)
+                                        }
+                                    }
                                 }
+
                                 if (available.isNotEmpty()) {
-                                    SectionHeader("Available to install")
-                                    available.forEach { AvailableRow(it, selected, busy) }
-                                    Spacer(Modifier.height(12.dp))
+                                    ToolchainSection(
+                                        icon = drawables.download,
+                                        title = "Available to install",
+                                        subtitle = "Select the tools you need, then install",
+                                    ) {
+                                        available.forEachIndexed { i, row ->
+                                            if (i > 0) RowDivider()
+                                            AvailableRow(row, selected, busy)
+                                        }
+                                    }
                                 }
+
                                 if (projectType == DetectedProjectType.ANDROID) {
-                                    SectionHeader("Android NDK")
-                                    Text(
-                                        "Install and keep multiple NDK versions side by side. Projects pick the version they need.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                    Spacer(Modifier.height(6.dp))
-                                    NDK_VERSIONS.forEach { version -> NdkVersionRow(version, installedNdk, busy) { installNdk(version) } }
+                                    ToolchainSection(
+                                        icon = drawables.android,
+                                        title = "Android NDK",
+                                        subtitle = "Install multiple versions side by side — projects pick the one they need.",
+                                    ) {
+                                        NDK_VERSIONS.forEachIndexed { i, version ->
+                                            if (i > 0) RowDivider()
+                                            NdkVersionRow(version, installedNdk, busy) { installNdk(version) }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -345,30 +349,53 @@ fun DependenciesView(projectRoot: File, onDismiss: () -> Unit) {
 
                 // Bottom install bar + live log
                 HorizontalDivider()
-                Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-                    if (busy) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = stringResource(strings.installing) + if (DependencyInstaller.currentName.isNotBlank()) "  ·  ${DependencyInstaller.currentName}" else "",
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f),
-                            )
-                            if (DependencyInstaller.downloadInfo.isNotBlank()) {
-                                Text(DependencyInstaller.downloadInfo, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Surface(tonalElevation = 2.dp) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                        if (busy) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    text = stringResource(strings.installing) +
+                                        if (DependencyInstaller.currentName.isNotBlank()) "  ·  ${DependencyInstaller.currentName}" else "",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                if (DependencyInstaller.downloadInfo.isNotBlank()) {
+                                    Text(
+                                        DependencyInstaller.downloadInfo,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
                             }
+                            Spacer(Modifier.height(8.dp))
+                            androidx.compose.material3.LinearProgressIndicator(
+                                progress = { DependencyInstaller.progress },
+                                modifier = Modifier.fillMaxWidth().height(6.dp),
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            LiveLog()
+                            Spacer(Modifier.height(12.dp))
                         }
-                        Spacer(Modifier.height(6.dp))
-                        LinearProgressIndicator(progress = { DependencyInstaller.progress }, modifier = Modifier.fillMaxWidth())
-                        Spacer(Modifier.height(8.dp))
-                        LiveLog()
-                        Spacer(Modifier.height(8.dp))
-                    }
-                    Button(
-                        enabled = !detecting && !busy && terminalReady && hasSelection,
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = { installSelected() },
-                    ) {
-                        Text(stringResource(if (busy) strings.installing else strings.download))
+                        Button(
+                            enabled = !detecting && !busy && terminalReady && hasSelection,
+                            modifier = Modifier.fillMaxWidth().height(50.dp),
+                            onClick = { installSelected() },
+                        ) {
+                            Icon(painterResource(drawables.download), contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text =
+                                    when {
+                                        busy -> stringResource(strings.installing)
+                                        hasSelection -> "${stringResource(strings.download)}  ($selectedCount)"
+                                        else -> stringResource(strings.download)
+                                    }
+                            )
+                        }
                     }
                 }
             }
@@ -378,6 +405,7 @@ fun DependenciesView(projectRoot: File, onDismiss: () -> Unit) {
     confirm?.let { c ->
         AlertDialog(
             onDismissRequest = { confirm = null },
+            icon = { Icon(painterResource(drawables.download), contentDescription = null) },
             title = { Text(c.title) },
             text = { Text(c.message) },
             confirmButton = {
@@ -393,70 +421,117 @@ fun DependenciesView(projectRoot: File, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun SectionHeader(text: String) {
-    Text(text, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(vertical = 4.dp))
+private fun RowDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 54.dp),
+        thickness = 0.5.dp,
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+    )
+}
+
+@Composable
+private fun EmptyDepsCard() {
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        tonalElevation = 1.dp,
+        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+    ) {
+        Row(modifier = Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                painter = painterResource(drawables.info),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp),
+            )
+            Spacer(Modifier.width(14.dp))
+            Text(stringResource(strings.no_dependencies_needed), style = MaterialTheme.typography.bodyLarge)
+        }
+    }
 }
 
 @Composable
 private fun InstalledRow(row: DepRow) {
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(row.dep.name, style = MaterialTheme.typography.bodyLarge)
-            Text(row.dep.summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Text(stringResource(strings.dep_installed), style = MaterialTheme.typography.labelMedium, color = Color(0xFF4CAF50))
-    }
+    ToolchainRow(
+        icon = iconForDep(row.dep.name),
+        title = row.dep.name,
+        description = row.dep.summary,
+        trailing = { StatusPill(stringResource(strings.dep_installed), PillTone.SUCCESS) },
+    )
 }
 
 @Composable
 private fun AvailableRow(row: DepRow, selected: MutableMap<String, Boolean>, busy: Boolean) {
     val svc = DependencyInstaller.status[row.dep.name]
     val selectable = !busy && (svc == null || svc == DepInstallStatus.FAILED)
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(checked = selected[row.dep.name] == true, enabled = selectable, onCheckedChange = { selected[row.dep.name] = it })
-        Spacer(Modifier.width(8.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(row.dep.name, style = MaterialTheme.typography.bodyLarge)
-            Text(row.dep.summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        when (svc) {
-            DepInstallStatus.INSTALLING -> CircularProgressIndicator(modifier = Modifier.size(18.dp))
-            DepInstallStatus.DONE -> Text(stringResource(strings.dep_installed), style = MaterialTheme.typography.labelMedium, color = Color(0xFF4CAF50))
-            DepInstallStatus.FAILED -> Text(stringResource(strings.dep_failed), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
-            DepInstallStatus.PENDING -> Text(stringResource(strings.dep_queued), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-            null -> {}
-        }
-    }
+    ToolchainRow(
+        modifier =
+            Modifier.clickable(enabled = selectable) {
+                selected[row.dep.name] = !(selected[row.dep.name] == true)
+            },
+        icon = iconForDep(row.dep.name),
+        title = row.dep.name,
+        description = row.dep.summary,
+        trailing = {
+            when (svc) {
+                DepInstallStatus.INSTALLING -> StatusPill(stringResource(strings.installing), PillTone.PROGRESS, showSpinner = true)
+                DepInstallStatus.DONE -> StatusPill(stringResource(strings.dep_installed), PillTone.SUCCESS)
+                DepInstallStatus.FAILED -> StatusPill(stringResource(strings.dep_failed), PillTone.ERROR)
+                DepInstallStatus.PENDING -> StatusPill(stringResource(strings.dep_queued), PillTone.INFO)
+                null ->
+                    Checkbox(
+                        checked = selected[row.dep.name] == true,
+                        enabled = selectable,
+                        onCheckedChange = { selected[row.dep.name] = it },
+                    )
+            }
+        },
+    )
 }
 
 @Composable
 private fun NdkVersionRow(version: String, installedNdk: List<String>, busy: Boolean, onInstall: () -> Unit) {
     val isInstalled = version != NDK_LATEST && installedNdk.contains(version)
     val svc = DependencyInstaller.status["Android NDK $version"]
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(if (version == NDK_LATEST) "Latest (newest available)" else version, style = MaterialTheme.typography.bodyMedium)
-        }
-        when {
-            svc == DepInstallStatus.INSTALLING -> CircularProgressIndicator(modifier = Modifier.size(18.dp))
-            isInstalled || svc == DepInstallStatus.DONE ->
-                Text(stringResource(strings.dep_installed), style = MaterialTheme.typography.labelMedium, color = Color(0xFF4CAF50))
-            else -> OutlinedButton(enabled = !busy, onClick = onInstall) { Text(stringResource(strings.download)) }
-        }
-    }
+    ToolchainRow(
+        icon = drawables.android,
+        title = if (version == NDK_LATEST) "Latest" else version,
+        description = if (version == NDK_LATEST) "Newest available release" else null,
+        trailing = {
+            when {
+                svc == DepInstallStatus.INSTALLING -> StatusPill(stringResource(strings.installing), PillTone.PROGRESS, showSpinner = true)
+                isInstalled || svc == DepInstallStatus.DONE -> StatusPill(stringResource(strings.dep_installed), PillTone.SUCCESS)
+                else -> OutlinedButton(enabled = !busy, onClick = onInstall) { Text(stringResource(strings.download)) }
+            }
+        },
+    )
 }
 
 @Composable
 private fun LiveLog() {
     val scroll = rememberScrollState()
     LaunchedEffect(DependencyInstaller.log.size) { runCatching { scroll.animateScrollTo(scroll.maxValue) } }
-    Surface(color = MaterialTheme.colorScheme.surfaceContainerLowest, shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth().height(180.dp)) {
-        Column(modifier = Modifier.fillMaxSize().verticalScroll(scroll).padding(10.dp)) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        shape = RoundedCornerShape(12.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+        modifier = Modifier.fillMaxWidth().height(180.dp),
+    ) {
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(scroll).padding(12.dp)) {
             DependencyInstaller.log.forEach { line ->
-                Text(line, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    line,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
             if (DependencyInstaller.log.isEmpty()) {
-                Text(DependencyInstaller.latestLine.ifBlank { "…" }, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+                Text(
+                    DependencyInstaller.latestLine.ifBlank { "…" },
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                )
             }
         }
     }

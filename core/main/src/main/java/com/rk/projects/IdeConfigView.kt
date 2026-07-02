@@ -1,24 +1,19 @@
 package com.rk.projects
 
 import android.content.Intent
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -29,15 +24,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -48,7 +41,6 @@ import com.rk.resources.strings
 import com.rk.utils.toast
 import java.io.File
 import kotlinx.coroutines.launch
-import androidx.compose.runtime.rememberCoroutineScope
 
 private const val ISSUE_URL = "https://github.com/GoyDevv/Xed-EditorPRO/issues/new"
 
@@ -101,30 +93,36 @@ fun IdeConfigView(projectRoot: File, onDismiss: () -> Unit) {
     Dialog(onDismissRequest = { if (!busy) onDismiss() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize()) {
-                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("IDE Configuration", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    IconButton(enabled = !loading && !busy, onClick = { refreshKey++ }) {
-                        Icon(painterResource(drawables.refresh), contentDescription = "Re-check")
-                    }
-                    IconButton(enabled = !busy, onClick = onDismiss) {
-                        Icon(painterResource(drawables.close), contentDescription = stringResource(strings.close))
-                    }
-                }
-                HorizontalDivider()
+                ToolchainTopBar(
+                    title = "IDE Configuration",
+                    subtitle = "Sandbox toolchains" + if (isAndroid) "  ·  Android" else "",
+                    subtitleIcon = drawables.settings,
+                    refreshEnabled = !loading && !busy,
+                    closeEnabled = !busy,
+                    onRefresh = { refreshKey++ },
+                    onClose = onDismiss,
+                )
 
                 when {
-                    loading ->
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(modifier = Modifier.size(22.dp))
-                        }
+                    loading -> ToolchainLoading("Reading installed toolchains…")
                     !terminalReady ->
-                        Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-                            Text(stringResource(strings.tools_no_terminal), color = MaterialTheme.colorScheme.error)
-                        }
+                        ToolchainMessage(
+                            icon = drawables.cloud_off,
+                            message = stringResource(strings.tools_no_terminal),
+                            tint = MaterialTheme.colorScheme.error,
+                        )
                     else ->
-                        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) {
+                        Column(
+                            modifier =
+                                Modifier.fillMaxSize()
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(horizontal = 16.dp)
+                                    .padding(bottom = 16.dp),
+                        ) {
                             ConfigSection(
+                                icon = drawables.java,
                                 title = "Java (JDK)",
+                                subtitle = "The active JDK is used for every build in the sandbox.",
                                 versions = jdks,
                                 actionLabel = "Use",
                                 enabled = !busy,
@@ -148,7 +146,9 @@ fun IdeConfigView(projectRoot: File, onDismiss: () -> Unit) {
 
                             if (isAndroid) {
                                 ConfigSection(
+                                    icon = drawables.android,
                                     title = "Android NDK",
+                                    subtitle = "Pin a version to this project via local.properties.",
                                     versions = ndks,
                                     actionLabel = "Use for project",
                                     enabled = !busy,
@@ -170,7 +170,9 @@ fun IdeConfigView(projectRoot: File, onDismiss: () -> Unit) {
                                     onReport = ::reportIssue,
                                 )
                                 ConfigSection(
+                                    icon = drawables.build,
                                     title = "Android build-tools",
+                                    subtitle = "Installed build-tools (managed by the SDK).",
                                     versions = buildTools,
                                     actionLabel = null,
                                     enabled = !busy,
@@ -181,14 +183,15 @@ fun IdeConfigView(projectRoot: File, onDismiss: () -> Unit) {
                             }
 
                             ConfigSection(
+                                icon = drawables.python,
                                 title = "Python",
+                                subtitle = "Tip: use a per-project virtualenv to pick a Python version safely.",
                                 versions = pythons,
                                 actionLabel = null,
                                 enabled = !busy,
                                 onAction = null,
                                 onInstall = ::openDeps,
                                 onReport = ::reportIssue,
-                                note = "Tip: use a per-project virtualenv to pick a Python version safely.",
                             )
                         }
                 }
@@ -199,6 +202,7 @@ fun IdeConfigView(projectRoot: File, onDismiss: () -> Unit) {
     confirm?.let { c ->
         AlertDialog(
             onDismissRequest = { confirm = null },
+            icon = { Icon(painterResource(drawables.settings), contentDescription = null) },
             title = { Text(c.title) },
             text = { Text(c.message) },
             confirmButton = {
@@ -215,45 +219,78 @@ fun IdeConfigView(projectRoot: File, onDismiss: () -> Unit) {
 
 @Composable
 private fun ConfigSection(
+    icon: Int,
     title: String,
+    subtitle: String?,
     versions: List<IdeConfig.Ver>,
     actionLabel: String?,
     enabled: Boolean,
     onAction: ((IdeConfig.Ver) -> Unit)?,
     onInstall: () -> Unit,
     onReport: () -> Unit,
-    note: String? = null,
 ) {
-    Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
-    note?.let {
-        Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    ToolchainSection(
+        icon = icon,
+        title = title,
+        subtitle = subtitle,
+        trailingBadge = if (versions.isNotEmpty()) ({ StatusPill("${versions.size}", PillTone.NEUTRAL) }) else null,
+    ) {
+        if (versions.isEmpty()) {
+            NotInstalledContent(enabled = enabled, onInstall = onInstall, onReport = onReport)
+        } else {
+            versions.forEachIndexed { i, ver ->
+                if (i > 0) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 16.dp),
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                    )
+                }
+                ToolchainRow(
+                    title = ver.label,
+                    monospaceTitle = true,
+                    trailing = {
+                        when {
+                            ver.active -> StatusPill("Active", PillTone.SUCCESS)
+                            actionLabel != null && onAction != null ->
+                                OutlinedButton(enabled = enabled, onClick = { onAction(ver) }) { Text(actionLabel) }
+                        }
+                    },
+                )
+            }
+        }
     }
-    if (versions.isEmpty()) {
-        Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text("Not installed", style = MaterialTheme.typography.bodyMedium)
+}
+
+@Composable
+private fun NotInstalledContent(enabled: Boolean, onInstall: () -> Unit, onReport: () -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                painter = painterResource(drawables.info),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp),
+            )
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text("Not installed", style = MaterialTheme.typography.bodyLarge)
                 Text(
                     "It isn't set up in your sandbox. Install it, or report an issue if it should be there.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Row {
-                    OutlinedButton(enabled = enabled, onClick = onInstall) { Text("Install") }
-                    Spacer(Modifier.width(8.dp))
-                    TextButton(onClick = onReport) { Text("Report issue") }
-                }
             }
         }
-        return
-    }
-    versions.forEach { ver ->
-        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(ver.label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            when {
-                ver.active -> Text("Active", style = MaterialTheme.typography.labelMedium, color = Color(0xFF4CAF50))
-                actionLabel != null && onAction != null ->
-                    OutlinedButton(enabled = enabled, onClick = { onAction(ver) }) { Text(actionLabel) }
+        Spacer(Modifier.width(12.dp))
+        Row(modifier = Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedButton(enabled = enabled, onClick = onInstall) {
+                Icon(painterResource(drawables.download), contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Install")
             }
+            Spacer(Modifier.width(12.dp))
+            TextButton(onClick = onReport) { Text("Report issue") }
         }
     }
 }
