@@ -20,7 +20,12 @@ class DependenciesCommand : EditorCommand() {
     override fun getLabel(): String = strings.dependencies.getString()
 
     override fun action(editorActionContext: EditorActionContext) {
-        editorActionContext.editorTab.editorState.showDependenciesDialog = true
+        val root =
+            (com.rk.activities.main.MainActivity.instance?.drawerViewModel?.currentDrawerTab as? com.rk.filetree.FileTreeTab)
+                ?.root
+                ?.getAbsolutePath()
+                ?: return
+        com.rk.projects.DependencyManagerState.open(java.io.File(root))
     }
 
     override fun isSupported(editorNonActionContext: EditorNonActionContext): Boolean = true

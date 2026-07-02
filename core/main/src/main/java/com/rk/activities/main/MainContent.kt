@@ -115,6 +115,12 @@ fun MainContent(
         )
     }
 
+    if (com.rk.projects.DependencyManagerState.visible) {
+        com.rk.projects.DependencyManagerState.projectRoot?.let { root ->
+            com.rk.projects.DependenciesView(projectRoot = root, onDismiss = { com.rk.projects.DependencyManagerState.close() })
+        }
+    }
+
     if (mainViewModel.isDraggingPalette || mainViewModel.showCommandPalette) {
         val lastUsedCommand = CommandProvider.getForId(Settings.last_used_command)
 

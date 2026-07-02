@@ -10,6 +10,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -39,6 +40,9 @@ enum class DepInstallStatus {
 object DependencyInstaller {
     val status = mutableStateMapOf<String, DepInstallStatus>()
 
+    /** Full live log of the running install (capped), for the detailed view. */
+    val log = mutableStateListOf<String>()
+
     var running by mutableStateOf(false)
         internal set
 
@@ -49,16 +53,40 @@ object DependencyInstaller {
     var latestLine by mutableStateOf("")
         internal set
 
+    /** Best-effort "45%  · 12.3 MB · 1.1 MB/s" parsed from apt/wget/sdkmanager output. */
+    var downloadInfo by mutableStateOf("")
+        internal set
+
     /** Overall progress 0f..1f across the queued installs (by count). */
     var progress by mutableStateOf(0f)
         internal set
 
+    private const val MAX_LOG = 600
+    private val speedRegex = Regex("([0-9.]+\\s?[KMG]i?B/s)")
+    private val sizeRegex = Regex("([0-9.]+\\s?[KMG]i?B)\\b")
+    private val pctRegex = Regex("(\\d{1,3})%")
+
     fun prime(names: List<String>) {
         status.clear()
+        log.clear()
         names.forEach { status[it] = DepInstallStatus.PENDING }
         currentName = ""
         latestLine = ""
+        downloadInfo = ""
         progress = 0f
+    }
+
+    /** Called by the service for each output line: appends to the log and parses download info. */
+    internal fun pushLine(line: String) {
+        latestLine = line
+        log.add(line)
+        while (log.size > MAX_LOG) log.removeAt(0)
+        val pct = pctRegex.find(line)?.groupValues?.getOrNull(1)
+        val speed = speedRegex.find(line)?.value
+        val size = sizeRegex.find(line)?.value
+        if (pct != null || speed != null || size != null) {
+            downloadInfo = listOfNotNull(pct?.let { "$it%" }, size, speed).joinToString("  ·  ")
+        }
     }
 }
 
@@ -129,7 +157,7 @@ class DependencyInstallService : Service() {
                         stream.bufferedReader().forEachLine { line ->
                             val trimmed = line.trim()
                             if (trimmed.isNotEmpty()) {
-                                synchronized(lock) { DependencyInstaller.latestLine = trimmed }
+                                synchronized(lock) { DependencyInstaller.pushLine(trimmed) }
                                 val now = System.currentTimeMillis()
                                 if (now - lastNotifyAt > 600) {
                                     lastNotifyAt = now

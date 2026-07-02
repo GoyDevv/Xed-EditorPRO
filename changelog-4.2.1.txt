@@ -45,6 +45,18 @@ launch screen, a smoother interface, and a batch of quality-of-life fixes.
 • Clear warnings before risky actions (e.g. force push), plus the existing discard confirmation.
 
 ────────────────────────────────────────────────────────────────────────────────
+🧩 Dependency manager
+────────────────────────────────────────────────────────────────────────────────
+• Now a full-screen view instead of a cramped dialog — clearer layout with separate "Installed" and
+  "Available to install" sections.
+• Opens even when no file is open, as long as a project folder is selected (from the toolbar).
+• More accurate detection of what's actually installed (no more false "installed").
+• Live install view: a scrolling log of what's happening, an overall progress bar, and a best-effort
+  download readout (percentage / size / speed) while packages download.
+• Android NDK: install and keep multiple versions side by side, each shown as installed or available —
+  like a proper SDK manager, instead of a single confusing dropdown.
+
+────────────────────────────────────────────────────────────────────────────────
 🐙 GitHub (uses the token from Git settings)
 ────────────────────────────────────────────────────────────────────────────────
 • Origin manager: see the linked repository and unlink it in one tap; when nothing is linked, choose

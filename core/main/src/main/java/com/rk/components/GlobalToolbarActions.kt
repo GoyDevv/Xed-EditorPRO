@@ -99,6 +99,11 @@ fun GlobalToolbarActions(viewModel: MainViewModel, drawerViewModel: DrawerViewMo
                     XedIcon(Icon.ResourceIcon(drawables.refresh))
                 }
             }
+
+            // Dependencies — available whenever a project directory is selected (even with no file open).
+            IconButton(onClick = { com.rk.projects.DependencyManagerState.open(java.io.File(rootPathStr)) }) {
+                XedIcon(Icon.ResourceIcon(drawables.download))
+            }
         }
 
         for (command in commands) {
