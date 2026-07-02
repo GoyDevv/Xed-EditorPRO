@@ -10,6 +10,10 @@
 #                         FORGE_MOD, GRADLE, RUST, GO, WEB)
 #   $2 = project dir     (absolute path; already the working directory)
 #   $3 = entry file      (absolute path of the currently open file, optional)
+#   $4 = gradle args     (extra flags for gradle builds, space-separated; optional)
+#                         e.g. "--info --stacktrace --offline". Set per project in the
+#                         IDE Configuration view (see com.rk.projects.GradleConfig).
+#   $5 = build type      (debug|release; Android picks assembleDebug/assembleRelease)
 #
 # No `set -e`: we want to surface build/run errors to the user and keep the
 # terminal open so the output (and any errors) stay visible.
@@ -19,6 +23,8 @@ source "$LOCAL/bin/utils"
 TYPE="${1:-UNKNOWN}"
 PROJECT_DIR="${2:-$PWD}"
 ENTRY="${3:-}"
+GRADLE_ARGS="${4:-}"
+BUILD_TYPE="${5:-debug}"
 
 # Resolve the directory we can actually enter. Shared storage is reliably available at /sdcard
 # inside the sandbox, while the canonical /storage/emulated/0 form sometimes isn't, so fall back
@@ -40,6 +46,12 @@ PROJECT_DIR="$PWD"
 
 info "Project : $PROJECT_DIR"
 info "Type    : $TYPE"
+case "$TYPE" in
+  FABRIC_MOD | FORGE_MOD | GRADLE | ANDROID | SYNC)
+    info "Build   : $BUILD_TYPE"
+    [ -n "$GRADLE_ARGS" ] && info "Gradle  : $GRADLE_ARGS"
+    ;;
+esac
 
 # --- helpers ---------------------------------------------------------------
 
@@ -70,13 +82,9 @@ gradle_build() {
   fi
   # Make the wrapper executable (shared storage / fresh clones often drop the +x bit).
   chmod +x ./gradlew 2>/dev/null
-  info "Building with ./gradlew build ..."
-  if [ -x ./gradlew ]; then
-    ./gradlew build
-  else
-    # Fallback: run it through bash directly if the exec bit can't be set (noexec mounts).
-    bash ./gradlew build
-  fi
+  info "Building with ./gradlew build $GRADLE_ARGS ..."
+  # $GRADLE_ARGS is intentionally unquoted so multiple flags word-split into separate args.
+  run_gradlew build $GRADLE_ARGS
   show_result $?
 }
 
@@ -163,17 +171,25 @@ case "$TYPE" in
       error "gradlew not found in the project root. This Android project is missing its wrapper."
       exit 1
     fi
-    info "Building APK with ./gradlew assembleDebug ..."
-    run_gradlew assembleDebug
+    if [ "$BUILD_TYPE" = "release" ]; then
+      ASSEMBLE_TASK="assembleRelease"
+      OUT_DIR="release"
+    else
+      ASSEMBLE_TASK="assembleDebug"
+      OUT_DIR="debug"
+    fi
+    info "Building APK with ./gradlew $ASSEMBLE_TASK $GRADLE_ARGS ..."
+    # $GRADLE_ARGS is intentionally unquoted so multiple flags word-split into separate args.
+    run_gradlew "$ASSEMBLE_TASK" $GRADLE_ARGS
     code=$?
     if [ "$code" -eq 0 ]; then
-      apk="$(ls -t app/build/outputs/apk/debug/*.apk build/outputs/apk/debug/*.apk 2>/dev/null | head -n1)"
+      apk="$(ls -t "app/build/outputs/apk/$OUT_DIR"/*.apk "build/outputs/apk/$OUT_DIR"/*.apk 2>/dev/null | head -n1)"
       if [ -n "$apk" ]; then
         apk_abs="$(cd "$(dirname "$apk")" 2>/dev/null && pwd)/$(basename "$apk")"
         info "APK built: $apk_abs"
         info "Installing… (confirm the system prompt)"
       else
-        warn "Build succeeded but no APK was found under app/build/outputs/apk/debug/."
+        warn "Build succeeded but no APK was found under app/build/outputs/apk/$OUT_DIR/."
       fi
     fi
     show_result $code
@@ -186,8 +202,9 @@ case "$TYPE" in
       error "gradlew not found in the project root."
       exit 1
     fi
-    info "Syncing Gradle dependencies (./gradlew --refresh-dependencies) ..."
-    run_gradlew --refresh-dependencies tasks
+    info "Syncing Gradle dependencies (./gradlew --refresh-dependencies tasks $GRADLE_ARGS) ..."
+    # $GRADLE_ARGS is intentionally unquoted so multiple flags word-split into separate args.
+    run_gradlew --refresh-dependencies tasks $GRADLE_ARGS
     show_result $?
     ;;
 

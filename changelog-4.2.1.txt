@@ -55,6 +55,8 @@ launch screen, a smoother interface, and a batch of quality-of-life fixes.
   download readout (percentage / size / speed) while packages download.
 • Android NDK: install and keep multiple versions side by side, each shown as installed or available —
   like a proper SDK manager, instead of a single confusing dropdown.
+• Refreshed, professional layout: grouped cards with tool icons, clear status chips (Installed /
+  Queued / Installing / Failed), a tidy header, and a consistent spacing rhythm throughout.
 
 ────────────────────────────────────────────────────────────────────────────────
 🛠 IDE Configuration (new)
@@ -64,6 +66,26 @@ launch screen, a smoother interface, and a batch of quality-of-life fixes.
 • Pick which installed Android NDK a project uses.
 • See your installed Python and Android build-tools versions at a glance.
 • Anything not installed offers a one-tap jump to the Dependency Manager, or to report an issue.
+• Refreshed, professional layout matching the Dependency Manager: grouped cards with icons, an
+  "Active" chip on the selected version, and clear per-section actions.
+
+────────────────────────────────────────────────────────────────────────────────
+⚙ Gradle build options (new, per project)
+────────────────────────────────────────────────────────────────────────────────
+• Added Gradle build controls to IDE Configuration for Gradle-based projects (Android, generic
+  Gradle/JVM, Fabric and Forge/NeoForge). Every option is saved per project and restored the next
+  time you open it — no global side effects.
+• Build type: choose Debug or Release. For Android this runs assembleDebug or assembleRelease and
+  installs the matching APK automatically.
+• Log level: pick the Gradle output verbosity — Quiet, Warn, Lifecycle, Info or Debug — with Info
+  as the sensible default for build feedback.
+• Additional flags: toggle any combination of common Gradle flags, including --stacktrace,
+  --offline, --refresh-dependencies, --rerun-tasks, --build-cache / --no-build-cache, --parallel,
+  --continue, --no-daemon and --warning-mode=all.
+• Live "Effective command" preview shows the exact ./gradlew command the Run button will use as you
+  change options.
+• These options are applied automatically to builds started from the Run button (and to Gradle
+  Sync), so what you configure is what runs.
 
 ────────────────────────────────────────────────────────────────────────────────
 🐙 GitHub (uses the token from Git settings)

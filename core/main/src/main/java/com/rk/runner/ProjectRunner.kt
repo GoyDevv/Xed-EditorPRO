@@ -9,6 +9,7 @@ import com.rk.file.FileWrapper
 import com.rk.file.child
 import com.rk.file.localBinDir
 import com.rk.projects.DetectedProjectType
+import com.rk.projects.GradleConfig
 import com.rk.projects.ProjectTypeDetector
 import com.rk.runner.runners.web.html.HtmlRunner
 import com.rk.terminal.setupAssetFile
@@ -51,6 +52,13 @@ object ProjectRunner {
 
     /** Project types the run button supports. Only genuinely unidentifiable projects are hidden. */
     fun isRunnable(type: DetectedProjectType): Boolean = type != DetectedProjectType.UNKNOWN
+
+    /** Whether the project is built with Gradle (and therefore honours the per-project Gradle options). */
+    fun isGradleType(type: DetectedProjectType): Boolean =
+        type == DetectedProjectType.ANDROID ||
+            type == DetectedProjectType.GRADLE ||
+            type == DetectedProjectType.FABRIC_MOD ||
+            type == DetectedProjectType.FORGE_MOD
 
     @Synchronized
     fun detect(projectRootPath: String): DetectedProjectType {
@@ -104,6 +112,12 @@ object ProjectRunner {
         val label = "Run · ${rootFile.name}"
         val scriptPath = localBinDir().child("project_runner").absolutePath
 
+        // Per-project Gradle options (Additional flags + log level + Debug/Release build type), set
+        // in the IDE Configuration view. Passed as extra positional args; the run script only uses
+        // them for Gradle-based project types and ignores them otherwise.
+        val gradleArgs = if (isGradleType(type)) GradleConfig.gradleArgs(rootFile) else ""
+        val buildType = GradleConfig.buildType(rootFile).id
+
         // Android Studio behaviour: an Android project must be Gradle-synced once this session
         // before it can be built/run. If not, surface a clear, detailed warning and stop.
         if (type == DetectedProjectType.ANDROID && !isSynced(rootPath)) {
@@ -122,7 +136,7 @@ object ProjectRunner {
                 context = activity,
                 label = label,
                 workingDir = sandboxRoot,
-                args = arrayListOf("/bin/bash", "-l", scriptPath, type.name, sandboxRoot, sandboxFile),
+                args = arrayListOf("/bin/bash", "-l", scriptPath, type.name, sandboxRoot, sandboxFile, gradleArgs, buildType),
                 // For Android, hand RunService the project's real path so it can locate and install
                 // the built APK once the build succeeds (the Android Studio "Run" experience).
                 androidApkProjectDir = if (type == DetectedProjectType.ANDROID) rootPath else null,
@@ -138,7 +152,7 @@ object ProjectRunner {
                     TerminalCommand(
                         sandbox = true,
                         exe = "/bin/bash",
-                        args = arrayOf(scriptPath, type.name, sandboxRoot, sandboxFile),
+                        args = arrayOf(scriptPath, type.name, sandboxRoot, sandboxFile, gradleArgs, buildType),
                         id = label,
                         terminatePreviousSession = true,
                         workingDir = sandboxRoot,
@@ -171,13 +185,18 @@ object ProjectRunner {
         val sandboxRoot = toSandboxPath(rootPath)
         val scriptPath = localBinDir().child("project_runner").absolutePath
 
+        // Honour the project's Gradle log level / additional flags during sync too.
+        val rootFile = File(rootPath)
+        val gradleArgs = GradleConfig.gradleArgs(rootFile)
+        val buildType = GradleConfig.buildType(rootFile).id
+
         if (!RunOutputState.begin(label = label)) return
         RunService.start(
             context = activity,
             label = label,
             workingDir = sandboxRoot,
             // "SYNC" pseudo-type triggers the gradle dependency sync path in project_runner.sh.
-            args = arrayListOf("/bin/bash", "-l", scriptPath, "SYNC", sandboxRoot, ""),
+            args = arrayListOf("/bin/bash", "-l", scriptPath, "SYNC", sandboxRoot, "", gradleArgs, buildType),
             androidApkProjectDir = null,
             // On success, mark this project synced for the session so Run is unblocked.
             syncProjectDir = rootPath,

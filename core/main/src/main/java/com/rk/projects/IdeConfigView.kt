@@ -1,6 +1,7 @@
 package com.rk.projects
 
 import android.content.Intent
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,16 +13,19 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -31,6 +35,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -56,7 +62,13 @@ private class Confirm(val title: String, val message: String, val run: () -> Uni
 fun IdeConfigView(projectRoot: File, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val isAndroid = remember { ProjectTypeDetector.detect(projectRoot) == DetectedProjectType.ANDROID }
+    val projectType = remember { ProjectTypeDetector.detect(projectRoot) }
+    val isAndroid = projectType == DetectedProjectType.ANDROID
+    val isGradle =
+        projectType == DetectedProjectType.ANDROID ||
+            projectType == DetectedProjectType.GRADLE ||
+            projectType == DetectedProjectType.FABRIC_MOD ||
+            projectType == DetectedProjectType.FORGE_MOD
 
     var jdks by remember { mutableStateOf<List<IdeConfig.Ver>>(emptyList()) }
     var ndks by remember { mutableStateOf<List<IdeConfig.Ver>>(emptyList()) }
@@ -119,6 +131,10 @@ fun IdeConfigView(projectRoot: File, onDismiss: () -> Unit) {
                                     .padding(horizontal = 16.dp)
                                     .padding(bottom = 16.dp),
                         ) {
+                            if (isGradle) {
+                                GradleSettings(root = projectRoot, isAndroid = isAndroid, enabled = !busy)
+                            }
+
                             ConfigSection(
                                 icon = drawables.java,
                                 title = "Java (JDK)",
@@ -291,6 +307,167 @@ private fun NotInstalledContent(enabled: Boolean, onInstall: () -> Unit, onRepor
             }
             Spacer(Modifier.width(12.dp))
             TextButton(onClick = onReport) { Text("Report issue") }
+        }
+    }
+}
+
+/**
+ * Per-project Gradle build options: Debug/Release build type, log level (default Info) and any
+ * number of extra flags. Every change is saved immediately (per project) via [GradleConfig] and is
+ * picked up by the next Run/Sync. A live preview shows the exact command the Run button will use.
+ */
+@Composable
+private fun GradleSettings(root: File, isAndroid: Boolean, enabled: Boolean) {
+    var buildType by remember { mutableStateOf(GradleConfig.buildType(root)) }
+    var logLevel by remember { mutableStateOf(GradleConfig.logLevel(root)) }
+    val flags = remember {
+        mutableStateMapOf<String, Boolean>().apply {
+            GradleConfig.ADDITIONAL_FLAGS.forEach { put(it.arg, GradleConfig.isFlagEnabled(root, it.arg)) }
+        }
+    }
+
+    ToolchainSection(
+        icon = drawables.build,
+        title = "Gradle build type",
+        subtitle = "Applied to this project's builds — Android picks assembleDebug / assembleRelease.",
+    ) {
+        GradleConfig.BuildType.values().forEachIndexed { i, type ->
+            if (i > 0) ConfigDivider()
+            ToolchainRow(
+                title = type.label,
+                description = type.description,
+                modifier =
+                    Modifier.clickable(enabled = enabled) {
+                        buildType = type
+                        GradleConfig.setBuildType(root, type)
+                    },
+                trailing = {
+                    RadioButton(
+                        selected = buildType == type,
+                        enabled = enabled,
+                        onClick = {
+                            buildType = type
+                            GradleConfig.setBuildType(root, type)
+                        },
+                    )
+                },
+            )
+        }
+    }
+
+    ToolchainSection(
+        icon = drawables.info,
+        title = "Gradle log level",
+        subtitle = "Verbosity of the build output. Default: Info.",
+    ) {
+        GradleConfig.LogLevel.values().forEachIndexed { i, level ->
+            if (i > 0) ConfigDivider()
+            ToolchainRow(
+                title = level.label,
+                description = level.description,
+                modifier =
+                    Modifier.clickable(enabled = enabled) {
+                        logLevel = level
+                        GradleConfig.setLogLevel(root, level)
+                    },
+                trailing = {
+                    RadioButton(
+                        selected = logLevel == level,
+                        enabled = enabled,
+                        onClick = {
+                            logLevel = level
+                            GradleConfig.setLogLevel(root, level)
+                        },
+                    )
+                },
+            )
+        }
+    }
+
+    ToolchainSection(
+        icon = drawables.terminal,
+        title = "Gradle additional flags",
+        subtitle = "Extra options appended to every Gradle build for this project. Select any number.",
+    ) {
+        GradleConfig.ADDITIONAL_FLAGS.forEachIndexed { i, flag ->
+            if (i > 0) ConfigDivider()
+            val checked = flags[flag.arg] == true
+            ToolchainRow(
+                title = flag.label,
+                description = "${flag.arg} — ${flag.description}",
+                modifier =
+                    Modifier.clickable(enabled = enabled) {
+                        val next = !checked
+                        flags[flag.arg] = next
+                        GradleConfig.setFlag(root, flag.arg, next)
+                    },
+                trailing = {
+                    Checkbox(
+                        checked = checked,
+                        enabled = enabled,
+                        onCheckedChange = {
+                            flags[flag.arg] = it
+                            GradleConfig.setFlag(root, flag.arg, it)
+                        },
+                    )
+                },
+            )
+        }
+    }
+
+    // Live preview of the exact command the Run button will execute for this project.
+    val task =
+        when {
+            isAndroid && buildType == GradleConfig.BuildType.RELEASE -> "assembleRelease"
+            isAndroid -> "assembleDebug"
+            else -> "build"
+        }
+    val extra =
+        buildString {
+            if (logLevel.arg.isNotEmpty()) append(logLevel.arg).append(' ')
+            GradleConfig.ADDITIONAL_FLAGS.forEach { if (flags[it.arg] == true) append(it.arg).append(' ') }
+        }
+            .trim()
+    GradleCommandPreview("./gradlew $task" + if (extra.isNotEmpty()) " $extra" else "")
+}
+
+@Composable
+private fun ConfigDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 16.dp),
+        thickness = 0.5.dp,
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+    )
+}
+
+@Composable
+private fun GradleCommandPreview(command: String) {
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) {
+        Row(
+            modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                painter = painterResource(drawables.command_palette),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = "Effective command",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        Surface(shape = MaterialTheme.shapes.large, tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = command,
+                style = MaterialTheme.typography.bodyMedium,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.padding(16.dp),
+            )
         }
     }
 }

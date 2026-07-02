@@ -6,28 +6,29 @@ import androidx.core.content.FileProvider
 import java.io.File
 
 /**
- * Installs an APK produced by an Android build. Locates the freshly built debug APK under the
- * project's real path, copies it somewhere the app's FileProvider can serve (external files dir,
- * covered by file_paths' external-path), and fires the system package installer.
+ * Installs an APK produced by an Android build. Locates the freshly built APK (debug or release)
+ * under the project's real path, copies it somewhere the app's FileProvider can serve (external
+ * files dir, covered by file_paths' external-path), and fires the system package installer.
  *
  * The user still confirms the install in the system dialog (and grants "install unknown apps" the
  * first time) — this is the on-device equivalent of Android Studio's install-and-run.
  */
 object ApkInstaller {
 
-    /** Newest debug APK under the standard Gradle output locations, or null. */
+    /** Newest APK under the standard Gradle output locations (any build variant), or null. */
     fun findApk(projectRealPath: String): File? {
-        val dirs =
+        val roots =
             listOf(
-                File(projectRealPath, "app/build/outputs/apk/debug"),
-                File(projectRealPath, "build/outputs/apk/debug"),
+                File(projectRealPath, "app/build/outputs/apk"),
+                File(projectRealPath, "build/outputs/apk"),
             )
-        return dirs
-            .flatMap { dir -> dir.listFiles { f -> f.isFile && f.extension.equals("apk", true) }?.toList() ?: emptyList() }
+        return roots
+            .filter { it.isDirectory }
+            .flatMap { root -> root.walkTopDown().filter { f -> f.isFile && f.extension.equals("apk", true) }.toList() }
             .maxByOrNull { it.lastModified() }
     }
 
-    /** Best-effort: find and launch the installer for the project's debug APK. Never throws. */
+    /** Best-effort: find and launch the installer for the project's built APK. Never throws. */
     fun install(context: Context, projectRealPath: String): Boolean {
         return runCatching {
                 val apk = findApk(projectRealPath) ?: return false
