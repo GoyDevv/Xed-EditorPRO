@@ -1,9 +1,9 @@
-name: Build Clone APK (Xed PRO)
+name: Build XED-PRO APK
 
-# Builds an installable, standalone "clone" APK (applicationId com.rk.xededitor.pro,
-# label "Xed PRO") signed with the bundled testkey. It installs ALONGSIDE the official
-# Xed-Editor instead of replacing it, and needs NO repository secrets, so it works on any
-# fork. Download it from: Actions run -> Artifacts -> "Xed-PRO".
+# Builds the installable, standalone XED-PRO APK (applicationId com.rk.xededitor.pro, label
+# "XED-PRO"). It installs ALONGSIDE the official Xed-Editor instead of replacing it. With no signing
+# secrets it falls back to the bundled testkey, so it works on any fork. Download it from:
+# Actions run -> Artifacts -> "XED-PRO".
 
 on:
   push:
@@ -52,17 +52,17 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
 
-      - name: Build clone APK
-        run: ./gradlew assembleClone --no-daemon --stacktrace
+      - name: Build XED-PRO APK
+        run: ./gradlew assemblePro --no-daemon --stacktrace
 
       - name: Collect APK
         run: |
           mkdir -p out
-          cp app/build/outputs/apk/clone/*.apk "out/xed-pro-${COMMIT_HASH}.apk"
+          cp app/build/outputs/apk/pro/*.apk "out/XED-PRO-${COMMIT_HASH}.apk"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v7
         with:
-          name: Xed-PRO
+          name: XED-PRO
           path: out/*.apk
           if-no-files-found: error

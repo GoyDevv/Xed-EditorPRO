@@ -9,11 +9,16 @@ import com.rk.file.FileWrapper
 import com.rk.file.child
 import com.rk.file.localBinDir
 import com.rk.projects.DetectedProjectType
+import com.rk.projects.GradleConfig
 import com.rk.projects.ProjectTypeDetector
+import com.rk.resources.strings
 import com.rk.runner.runners.web.html.HtmlRunner
 import com.rk.terminal.setupAssetFile
 import com.rk.terminal.setupTerminalFiles
+import com.rk.utils.dialogRes
 import java.io.File
+import kotlin.coroutines.resume
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
  * Project-aware "Run" entry point used by the editor's play button.
@@ -51,6 +56,40 @@ object ProjectRunner {
 
     /** Project types the run button supports. Only genuinely unidentifiable projects are hidden. */
     fun isRunnable(type: DetectedProjectType): Boolean = type != DetectedProjectType.UNKNOWN
+
+    /** Whether the project is built with Gradle (and therefore honours the per-project Gradle options). */
+    fun isGradleType(type: DetectedProjectType): Boolean =
+        type == DetectedProjectType.ANDROID ||
+            type == DetectedProjectType.GRADLE ||
+            type == DetectedProjectType.FABRIC_MOD ||
+            type == DetectedProjectType.FORGE_MOD
+
+    /**
+     * Shows a one-time (per project) heads-up that the first Gradle build/sync can take a while
+     * because it downloads the SDK and dependencies. Suspends until the user chooses; returns true to
+     * proceed, false if they cancelled. Subsequent builds skip the dialog.
+     */
+    private suspend fun awaitFirstBuildAck(rootFile: File): Boolean {
+        if (GradleConfig.firstBuildShown(rootFile)) return true
+        return suspendCancellableCoroutine { cont ->
+            dialogRes(
+                title = "Setting up \"${rootFile.name}\"",
+                msg =
+                    "The first Gradle build/sync can take around 10–20 minutes.\n\n" +
+                        "It downloads the Gradle dependencies (and, for Android projects, the SDK and build-tools) " +
+                        "over your connection. Later builds are much faster. It keeps running in the background — " +
+                        "just keep the app open.",
+                okRes = strings.ok,
+                cancelRes = strings.cancel,
+                onOk = {
+                    GradleConfig.setFirstBuildShown(rootFile)
+                    if (cont.isActive) cont.resume(true)
+                },
+                onCancel = { if (cont.isActive) cont.resume(false) },
+                cancelable = false,
+            )
+        }
+    }
 
     @Synchronized
     fun detect(projectRootPath: String): DetectedProjectType {
@@ -104,6 +143,12 @@ object ProjectRunner {
         val label = "Run · ${rootFile.name}"
         val scriptPath = localBinDir().child("project_runner").absolutePath
 
+        // Per-project Gradle options (Additional flags + log level + Debug/Release build type), set
+        // in the IDE Configuration view. Passed as extra positional args; the run script only uses
+        // them for Gradle-based project types and ignores them otherwise.
+        val gradleArgs = if (isGradleType(type)) GradleConfig.gradleArgs(rootFile) else ""
+        val buildType = GradleConfig.buildType(rootFile).id
+
         // Android Studio behaviour: an Android project must be Gradle-synced once this session
         // before it can be built/run. If not, surface a clear, detailed warning and stop.
         if (type == DetectedProjectType.ANDROID && !isSynced(rootPath)) {
@@ -112,6 +157,9 @@ object ProjectRunner {
             RunOutputState.onFinished(1)
             return
         }
+
+        // First-time heads-up (per project) for the potentially long first Gradle build.
+        if (isGradleType(type) && !awaitFirstBuildAck(rootFile)) return
 
         if (isTerminalInstalled()) {
             // Run headlessly in the background: no terminal screen is shown. Output and progress are
@@ -122,7 +170,7 @@ object ProjectRunner {
                 context = activity,
                 label = label,
                 workingDir = sandboxRoot,
-                args = arrayListOf("/bin/bash", "-l", scriptPath, type.name, sandboxRoot, sandboxFile),
+                args = arrayListOf("/bin/bash", "-l", scriptPath, type.name, sandboxRoot, sandboxFile, gradleArgs, buildType),
                 // For Android, hand RunService the project's real path so it can locate and install
                 // the built APK once the build succeeds (the Android Studio "Run" experience).
                 androidApkProjectDir = if (type == DetectedProjectType.ANDROID) rootPath else null,
@@ -138,7 +186,7 @@ object ProjectRunner {
                     TerminalCommand(
                         sandbox = true,
                         exe = "/bin/bash",
-                        args = arrayOf(scriptPath, type.name, sandboxRoot, sandboxFile),
+                        args = arrayOf(scriptPath, type.name, sandboxRoot, sandboxFile, gradleArgs, buildType),
                         id = label,
                         terminatePreviousSession = true,
                         workingDir = sandboxRoot,
@@ -171,13 +219,21 @@ object ProjectRunner {
         val sandboxRoot = toSandboxPath(rootPath)
         val scriptPath = localBinDir().child("project_runner").absolutePath
 
+        // Honour the project's Gradle log level / additional flags during sync too.
+        val rootFile = File(rootPath)
+        val gradleArgs = GradleConfig.gradleArgs(rootFile)
+        val buildType = GradleConfig.buildType(rootFile).id
+
+        // First-time heads-up (per project) — the first sync downloads the SDK and can be slow.
+        if (!awaitFirstBuildAck(rootFile)) return
+
         if (!RunOutputState.begin(label = label)) return
         RunService.start(
             context = activity,
             label = label,
             workingDir = sandboxRoot,
             // "SYNC" pseudo-type triggers the gradle dependency sync path in project_runner.sh.
-            args = arrayListOf("/bin/bash", "-l", scriptPath, "SYNC", sandboxRoot, ""),
+            args = arrayListOf("/bin/bash", "-l", scriptPath, "SYNC", sandboxRoot, "", gradleArgs, buildType),
             androidApkProjectDir = null,
             // On success, mark this project synced for the session so Run is unblocked.
             syncProjectDir = rootPath,

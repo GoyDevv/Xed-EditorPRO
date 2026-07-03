@@ -71,6 +71,7 @@ import com.rk.icons.XedIcon
 import com.rk.projects.CreateProjectDialog
 import com.rk.projects.ProjectDependencies
 import com.rk.projects.ProjectScaffolder
+import com.rk.projects.ProjectTemplate
 import com.rk.settings.Settings
 import com.rk.exec.isTerminalInstalled
 import com.rk.exec.launchTerminal
@@ -132,6 +133,9 @@ fun DrawerContent(fullscreen: Boolean) {
 
                 // Create project dialog
                 var showCreateProjectDialog by remember { mutableStateOf(false) }
+
+                // Projects / Repositories browser
+                var showProjectsBrowser by remember { mutableStateOf(false) }
 
                 // Missing dependencies prompt after project creation
                 var pendingDeps by remember { mutableStateOf<List<ProjectDependencies.Tool>>(emptyList()) }
@@ -417,6 +421,10 @@ fun DrawerContent(fullscreen: Boolean) {
                             showAddDialog = false
                             showCreateProjectDialog = true
                         },
+                        showProjects = {
+                            showAddDialog = false
+                            showProjectsBrowser = true
+                        },
                     )
                 }
 
@@ -493,13 +501,20 @@ fun DrawerContent(fullscreen: Boolean) {
                                 when (val result = ProjectScaffolder.scaffold(config)) {
                                     is ProjectScaffolder.Result.Success -> {
                                         viewModel.addFileTreeTab(FileWrapper(result.projectRoot), save = true)
+                                        // Surface any template warning (e.g. offline version fallback).
+                                        result.warning?.let { toast(it) }
                                         // Honest heads-up: builds can't run from noexec shared storage.
                                         if (config.template.recommendsSandbox &&
                                             StorageUtils.isOnSharedStorage(result.projectRoot)) {
                                             toast(strings.shared_storage_build_warning)
                                         }
-                                        // Detect (and later offer to install) the project's toolchain.
-                                        if (isTerminalInstalled()) {
+                                        if (config.template == ProjectTemplate.ANDROID_COMPOSE && isTerminalInstalled()) {
+                                            // Android Studio style: start a Gradle sync right away. The sync
+                                            // downloads the Android SDK first (if missing), then configures.
+                                            val fo = FileWrapper(result.projectRoot)
+                                            com.rk.runner.ProjectRunner.sync(mainActivity, fo, fo)
+                                        } else if (isTerminalInstalled()) {
+                                            // Detect (and later offer to install) the project's toolchain.
                                             val tools = ProjectDependencies.requiredTools(config)
                                             if (tools.isNotEmpty()) {
                                                 val missing = ProjectDependencies.missingTools(tools)
@@ -510,6 +525,16 @@ fun DrawerContent(fullscreen: Boolean) {
                                     is ProjectScaffolder.Result.Failure -> toast(result.message)
                                 }
                             }
+                        },
+                    )
+                }
+
+                if (showProjectsBrowser) {
+                    com.rk.projects.ProjectsBrowserSheet(
+                        onDismiss = { showProjectsBrowser = false },
+                        onOpenProject = { dir ->
+                            showProjectsBrowser = false
+                            scope.launch { viewModel.addFileTreeTab(FileWrapper(dir), save = true) }
                         },
                     )
                 }

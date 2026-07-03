@@ -18,8 +18,8 @@ android {
         targetSdk = 37
 
         // versioning
-        versionCode = 127
-        versionName = "4.2.0"
+        versionCode = 128
+        versionName = "4.2.1"
         vectorDrawables { useSupportLibrary = true }
     }
 
@@ -125,15 +125,19 @@ android {
             isDebuggable = false
         }
 
-        // Standalone "clone" build: distinct applicationId + label so it installs ALONGSIDE the
-        // official Xed-Editor (and the debug build) instead of replacing it. Signed with the
-        // bundled testkey, so it needs no signing secrets and builds on any fork/CI.
-        create("clone") {
+        // XED-PRO release build: distinct applicationId + label so it installs ALONGSIDE the
+        // official Xed-Editor (and the debug build) instead of replacing it. This is a real release
+        // build (initWith release, not debuggable). It is ALWAYS signed with the bundled, committed
+        // keystore (the "debug" testkey), so every build — locally, on any fork, and on CI — uses the
+        // exact same signing key. That means each new XED-PRO APK installs as an update over the
+        // previous one (Android requires an identical signature to update). Do NOT change this key,
+        // or existing installs will fail to update until they're uninstalled.
+        create("pro") {
             initWith(buildTypes.getByName("release"))
             matchingFallbacks += listOf("release")
             applicationIdSuffix = ".pro"
             versionNameSuffix = "-PRO"
-            resValue("string", "app_name", "Xed PRO")
+            resValue("string", "app_name", "XED-PRO")
             signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
             isShrinkResources = false

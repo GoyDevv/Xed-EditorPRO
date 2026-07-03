@@ -158,6 +158,9 @@ class MainActivity : AppCompatActivity() {
             }
             var splashDone by rememberSaveable { mutableStateOf(false) }
             Box(modifier = Modifier.fillMaxSize()) {
+                // Always compose the real app immediately so it fully loads and lays out *behind* the
+                // opaque splash. The splash itself waits for the main thread to go idle before it
+                // animates, so the launch animation never competes with heavy composition.
                 NavHost(
                     navController = navController,
                     startDestination = startDestination,
@@ -171,7 +174,18 @@ class MainActivity : AppCompatActivity() {
                     composable(MainRoutes.Disclaimer.route) { DisclaimerScreen(navController) { finishAffinity() } }
                 }
                 if (!splashDone) {
-                    com.rk.theme.XedTheme { SplashScreen(onFinish = { splashDone = true }) }
+                    com.rk.theme.XedTheme {
+                        SplashScreen(onFinish = { splashDone = true })
+                    }
+                }
+            }
+
+            // One-time "What's new" dialog, shown once the splash has handed off. Re-appears each
+            // launch until the user ticks "Never show again for this version".
+            var changelogDismissed by rememberSaveable { mutableStateOf(false) }
+            if (splashDone && !changelogDismissed && com.rk.components.ChangelogInfo.shouldShow()) {
+                com.rk.theme.XedTheme {
+                    com.rk.components.ChangelogDialog(onClose = { changelogDismissed = true })
                 }
             }
         }

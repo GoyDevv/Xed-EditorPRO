@@ -145,6 +145,54 @@ class FileManager(private val activity: ComponentActivity) {
             }
         }
     }
+    /** Imports one or more picked files into [parent] by copying their contents in. */
+    fun requestImportFiles(parent: FileObject, callback: (Int) -> Unit = {}) {
+        parentFile = parent
+        launchActivityForResult(
+            Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+                putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            }
+        ) { result ->
+            val target = parentFile
+            parentFile = null
+            if (result.resultCode != Activity.RESULT_OK || target == null) {
+                callback(0)
+                return@launchActivityForResult
+            }
+
+            val data = result.data
+            val uris = mutableListOf<Uri>()
+            data?.clipData?.let { clip -> for (i in 0 until clip.itemCount) uris.add(clip.getItemAt(i).uri) }
+            if (uris.isEmpty()) data?.data?.let { uris.add(it) }
+            if (uris.isEmpty()) {
+                callback(0)
+                return@launchActivityForResult
+            }
+
+            DefaultScope.launch(Dispatchers.IO) {
+                var imported = 0
+                for (uri in uris) {
+                    runCatching {
+                            val fileName = getFileName(activity.contentResolver, uri)
+                            val destinationFile = target.createChild(true, fileName)
+                            if (destinationFile != null) {
+                                copyUriData(activity.contentResolver, uri, destinationFile.toUri())
+                                imported++
+                            }
+                        }
+                        .onFailure { it.printStackTrace() }
+                }
+                withContext(Dispatchers.Main) {
+                    fileTreeViewModel.get()?.updateCache(target)
+                    toast("Imported $imported file(s)")
+                    callback(imported)
+                }
+            }
+        }
+    }
+
 
     fun selectDirForNewFileLaunch(fileName: String, callback: (FileObject?) -> Unit = {}) {
         launchDirectoryPicker { uri ->

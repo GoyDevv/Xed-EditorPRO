@@ -1,0 +1,167 @@
+Xed-Editor PRO — 4.2.1
+
+A major UI and Git release: a redesigned Git workspace with GitHub built in, a new animated
+launch screen, a smoother interface, and a batch of quality-of-life fixes.
+
+────────────────────────────────────────────────────────────────────────────────
+✨ Startup
+────────────────────────────────────────────────────────────────────────────────
+• Redesigned launch screen: the "XED PRO" wordmark with a "by GoyDevv" tagline, a loading progress
+  bar and a live status line ("Preparing workspace…", "Loading editor…", "Almost ready…"), on a
+  clean dark backdrop using your selected app font.
+• It's load-first: the progress bar only completes once the app has fully loaded behind it, so the
+  whole thing runs at a steady 60fps with no jank or theme flashing and reveals the ready app
+  instantly.
+
+────────────────────────────────────────────────────────────────────────────────
+🧭 Interface
+────────────────────────────────────────────────────────────────────────────────
+• The side drawer now glides open/closed when you expand or collapse it (no more snap).
+• The drawer's expand button springs with a little bounce.
+• When no file is open, the editor now shows a project overview instead of a bare link:
+  the project name, its path, the detected main language, and an "Open file tree" button.
+• The build output and other UI now use the font you pick in Settings.
+• A one-time "What's new" dialog now appears after an update, with a "Never show again for this
+  version" option — it keeps showing each launch until you tick it and dismiss.
+• The app's terminal home directory is now exposed to other apps (via the system file picker) by
+  default, so your projects are reachable from elsewhere. You can turn it off in Settings › Terminal.
+
+────────────────────────────────────────────────────────────────────────────────
+📁 Files
+────────────────────────────────────────────────────────────────────────────────
+• New "+" option: create a file directly in the project root. You can type a path like
+  src/utils/File.kt and any missing folders are created for you.
+• New "+" option: Projects & Repositories — a bottom sheet that lists every project and cloned
+  repository in your workspace (it intelligently shows only real projects), with each one's type,
+  package name, creation date, last-edited time and on-disk size. Tap one to open it.
+• Fixed the temporary-file dialog that used to close by itself.
+• The Terminal button now opens in the selected project folder even when no file is open (it used to
+  fall back to the sandbox home).
+
+────────────────────────────────────────────────────────────────────────────────
+🧰 Create Project — redesigned
+────────────────────────────────────────────────────────────────────────────────
+• Now a rounded bottom sheet instead of a plain dialog, with a clear, organized layout and room to
+  breathe.
+• New icon-based template chooser: a compact, swipeable row of template tiles (None, Python,
+  Node.js, Static Web, Minecraft Java Mod, Android/Jetpack Compose), each with its own icon, and a
+  one-line description of the selected one — so it's obvious what you get before you pick.
+• Grouped into tidy sections — Template, Project details, Package, and Options — each with its own
+  heading and icon, and text fields with leading icons.
+• Real-time package name: as you type the project name and author, the Package field itself is
+  filled in with the generated applicationId (e.g. com.author.appname) live — and the moment you
+  edit it, your own value is kept as-is.
+• Template-aware options (Minecraft mod loader / version / id, JDK version, Git init) appear only
+  when they apply, and the resolved project location and required-toolchain status are shown inline.
+• Android projects can now pick their SDK (compile/target API level) from a live list fetched from
+  Google's SDK repository — newest to oldest, each labelled with its Android version (e.g. "API 35 ·
+  Android 15") — instead of a fixed version, and the generated build.gradle.kts uses your choice
+  (minSdk is kept sensible automatically).
+• After an Android project is created, a Gradle sync starts automatically (Android Studio style) —
+  it downloads the Android SDK first if it's missing, then configures the build.
+
+────────────────────────────────────────────────────────────────────────────────
+🧱 Project templates — now build for real
+────────────────────────────────────────────────────────────────────────────────
+• Android: the generated project now uses the same proven toolchain the IDE itself ships with
+  (AGP 9.2.1, Kotlin 2.3.20, Gradle 9.5.1, Compose BOM 2025.11.01), so it compiles against the
+  latest SDK levels you pick (up to Android 17 / API 37) instead of failing on an old plugin.
+• Fabric: yarn mappings, loader and Fabric API versions are now resolved for your chosen Minecraft
+  version from Fabric's official meta API and Modrinth — real, published versions that actually
+  resolve — with offline fallbacks if there's no connection.
+• Forge: the Forge build is resolved for your Minecraft version from the official promotions
+  manifest, the Forge Maven repository is included, and the loader version ranges + resource
+  pack_format are derived from the version. (pack_format only affects an in-game warning.)
+• The JDK is chosen automatically to match the Minecraft version (1.20.5+/1.21+ → 21,
+  1.17–1.20.4 → 17, older → 8), and you can still override it.
+• Minecraft version list tracks the current scheme, including the 2026 year-based releases
+  (e.g. 26.2), fetched live from Mojang — the matching JDK is picked automatically.
+• Builds/sync install the exact SDK platform your project targets (read from compileSdk), not just
+  the newest one.
+• Android projects include example unit + instrumented tests, matching a real Android Studio
+  "Empty Activity" project.
+
+────────────────────────────────────────────────────────────────────────────────
+▶ Build & Run
+────────────────────────────────────────────────────────────────────────────────
+• Refined build/run output panel with live streaming and smooth open/close.
+• First-build heads-up: the first time you build or sync a Gradle project, a one-time reminder
+  explains it can take ~10–20 minutes (it downloads the SDK and dependencies); shown once per
+  project.
+• Gradle sync now downloads the Android SDK (and a JDK) automatically before building if they aren't
+  installed yet, so the first sync/build is self-contained.
+• Stopping a build (or closing the output) now truly stops it — the process ends, the notification
+  clears, and the app no longer keeps running the build in the background. No more false
+  "finished successfully" after you hit Stop.
+
+────────────────────────────────────────────────────────────────────────────────
+🌿 Git — full redesign
+────────────────────────────────────────────────────────────────────────────────
+• Reorganized into three tabs: Code, Diff, and Actions, with animated switching.
+• Code: your changed files, grouped (conflicts / changes / untracked). Tap a file to jump to its diff.
+• Diff: a collapsible card per file showing the changes with color — green additions, red deletions —
+  and an added/removed line count for each file.
+• Commit now has both a Title and a separate Description, like a proper commit message.
+• Clear warnings before risky actions (e.g. force push), plus the existing discard confirmation.
+
+────────────────────────────────────────────────────────────────────────────────
+🧩 Dependency manager
+────────────────────────────────────────────────────────────────────────────────
+• Now a full-screen view instead of a cramped dialog — clearer layout with separate "Installed" and
+  "Available to install" sections.
+• Opens even when no file is open, as long as a project folder is selected (from the toolbar).
+• More accurate detection of what's actually installed (no more false "installed").
+• Live install view: a scrolling log of what's happening, an overall progress bar, and a best-effort
+  download readout (percentage / size / speed) while packages download.
+• Android NDK: install and keep multiple versions side by side, each shown as installed or available —
+  like a proper SDK manager, instead of a single confusing dropdown.
+• Refreshed, professional layout: grouped cards with tool icons, clear status chips (Installed /
+  Queued / Installing / Failed), a tidy header, and a consistent spacing rhythm throughout.
+• Installed tools now show a "• Installed" marker next to their name and a proper Uninstall button
+  (with a confirm) instead of a small label — removing a tool re-checks the sandbox automatically.
+• Clearer NDK entries: each row is labelled "NDK <version>" (and "Latest NDK"), with an installed
+  marker, so it's obvious which version you're installing.
+
+────────────────────────────────────────────────────────────────────────────────
+🛠 IDE Configuration (new)
+────────────────────────────────────────────────────────────────────────────────
+• A new toolbar view (next to Dependencies) for managing your toolchain versions.
+• Switch the active Java (JDK) version — the change applies system-wide in the sandbox.
+• Pick which installed Android NDK a project uses.
+• See your installed Python and Android build-tools versions at a glance.
+• Anything not installed offers a one-tap jump to the Dependency Manager, or to report an issue.
+• Refreshed, professional layout matching the Dependency Manager: grouped cards with icons, an
+  "Active" chip on the selected version, and clear per-section actions.
+• Version labels now use the app font (consistent with section titles) instead of a monospace face.
+
+────────────────────────────────────────────────────────────────────────────────
+⚙ Gradle build options (new, per project)
+────────────────────────────────────────────────────────────────────────────────
+• Added Gradle build controls to IDE Configuration for Gradle-based projects (Android, generic
+  Gradle/JVM, Fabric and Forge/NeoForge). Every option is saved per project and restored the next
+  time you open it — no global side effects.
+• Build type: choose Debug or Release. For Android this runs assembleDebug or assembleRelease and
+  installs the matching APK automatically.
+• Log level: pick the Gradle output verbosity — Quiet, Warn, Lifecycle, Info or Debug — with Info
+  as the sensible default for build feedback.
+• Additional flags: toggle any combination of common Gradle flags, including --stacktrace,
+  --offline, --refresh-dependencies, --rerun-tasks, --build-cache / --no-build-cache, --parallel,
+  --continue, --no-daemon and --warning-mode=all.
+• Clearer selection model: build type and log level are single-choice (Gradle accepts only one of
+  each), while the additional flags are multi-select — pick as many as you want.
+• Live "Effective command" preview shows the exact ./gradlew command the Run button will use as you
+  change options.
+• These options are applied automatically to builds started from the Run button (and to Gradle
+  Sync), so what you configure is what runs.
+
+────────────────────────────────────────────────────────────────────────────────
+🐙 GitHub (uses the token from Git settings)
+────────────────────────────────────────────────────────────────────────────────
+• Origin manager: see the linked repository and unlink it in one tap; when nothing is linked, choose
+  to link an existing URL, pick from your repositories, or create a brand-new repository.
+• Create a repository from inside the app and set it as the origin.
+• Search your GitHub repositories and link one as the origin.
+• Open a pull request (title, base branch, description) without leaving the editor.
+• Actions tab: see recent workflow runs with their status (running / success / failure) and open any
+  run on GitHub.
+• Quick shortcut to Git settings from the Git tab menu.

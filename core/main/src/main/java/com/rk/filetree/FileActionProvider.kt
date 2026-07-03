@@ -19,6 +19,7 @@ object FileActionProvider {
             OpenWithAction,
             SaveAsAction,
             // AddFileAction,
+            ImportFilesAction,
             OpenAsProjectAction,
             PropertiesAction,
         )

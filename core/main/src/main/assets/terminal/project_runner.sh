@@ -10,6 +10,10 @@
 #                         FORGE_MOD, GRADLE, RUST, GO, WEB)
 #   $2 = project dir     (absolute path; already the working directory)
 #   $3 = entry file      (absolute path of the currently open file, optional)
+#   $4 = gradle args     (extra flags for gradle builds, space-separated; optional)
+#                         e.g. "--info --stacktrace --offline". Set per project in the
+#                         IDE Configuration view (see com.rk.projects.GradleConfig).
+#   $5 = build type      (debug|release; Android picks assembleDebug/assembleRelease)
 #
 # No `set -e`: we want to surface build/run errors to the user and keep the
 # terminal open so the output (and any errors) stay visible.
@@ -19,6 +23,8 @@ source "$LOCAL/bin/utils"
 TYPE="${1:-UNKNOWN}"
 PROJECT_DIR="${2:-$PWD}"
 ENTRY="${3:-}"
+GRADLE_ARGS="${4:-}"
+BUILD_TYPE="${5:-debug}"
 
 # Resolve the directory we can actually enter. Shared storage is reliably available at /sdcard
 # inside the sandbox, while the canonical /storage/emulated/0 form sometimes isn't, so fall back
@@ -40,6 +46,12 @@ PROJECT_DIR="$PWD"
 
 info "Project : $PROJECT_DIR"
 info "Type    : $TYPE"
+case "$TYPE" in
+  FABRIC_MOD | FORGE_MOD | GRADLE | ANDROID | SYNC)
+    info "Build   : $BUILD_TYPE"
+    [ -n "$GRADLE_ARGS" ] && info "Gradle  : $GRADLE_ARGS"
+    ;;
+esac
 
 # --- helpers ---------------------------------------------------------------
 
@@ -70,13 +82,9 @@ gradle_build() {
   fi
   # Make the wrapper executable (shared storage / fresh clones often drop the +x bit).
   chmod +x ./gradlew 2>/dev/null
-  info "Building with ./gradlew build ..."
-  if [ -x ./gradlew ]; then
-    ./gradlew build
-  else
-    # Fallback: run it through bash directly if the exec bit can't be set (noexec mounts).
-    bash ./gradlew build
-  fi
+  info "Building with ./gradlew build $GRADLE_ARGS ..."
+  # $GRADLE_ARGS is intentionally unquoted so multiple flags word-split into separate args.
+  run_gradlew build $GRADLE_ARGS
   show_result $?
 }
 
@@ -103,6 +111,56 @@ run_gradlew() {
   else
     bash ./gradlew "$@"
   fi
+}
+
+# Make sure the Android SDK (and a JDK) are present before building. If they're missing, download and
+# install them now — the "download the SDK before the build" step for Gradle sync/first build. This
+# mirrors the "Android SDK" entry in the Dependencies dialog and is idempotent (a no-op once present).
+ensure_android_sdk() {
+  export ANDROID_HOME="$HOME/android-sdk"
+  export ANDROID_SDK_ROOT="$ANDROID_HOME"
+  local proj="$PWD"
+  local SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+
+  # 1. Bootstrap the SDK (JDK + command-line tools + platform-tools) if it isn't installed yet.
+  if [ ! -x "$ANDROID_HOME/platform-tools/adb" ] || ! command_exists java; then
+    info "Android SDK not found — downloading it now (this can take a while) ..."
+    apt-get update -y && apt-get install -y wget unzip openjdk-17-jdk || { error "Could not install prerequisites (wget/unzip/JDK)."; cd "$proj" 2>/dev/null; return 1; }
+    mkdir -p "$ANDROID_HOME/cmdline-tools"
+    cd "$ANDROID_HOME/cmdline-tools" || { cd "$proj" 2>/dev/null; return 1; }
+    wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O clt.zip || { error "Failed to download Android command-line tools."; cd "$proj" 2>/dev/null; return 1; }
+    unzip -q -o clt.zip && rm -f clt.zip && rm -rf latest && mv cmdline-tools latest
+    yes | "$SDKM" --sdk_root="$ANDROID_HOME" --licenses >/dev/null 2>&1 || true
+    "$SDKM" --sdk_root="$ANDROID_HOME" "platform-tools" || { error "Android SDK platform-tools install failed."; cd "$proj" 2>/dev/null; return 1; }
+    cd "$proj" 2>/dev/null
+  fi
+
+  [ -x "$SDKM" ] || return 0
+  yes | "$SDKM" --sdk_root="$ANDROID_HOME" --licenses >/dev/null 2>&1 || true
+
+  # 2. Install the EXACT platform the project targets (compileSdk from the build file), so AGP
+  #    doesn't have to fetch it mid-build; fall back to the newest available platform.
+  local CSDK
+  CSDK=$(grep -hoE 'compileSdk[[:space:]]*=?[[:space:]]*[0-9]+' app/build.gradle.kts build.gradle.kts app/build.gradle build.gradle 2>/dev/null | grep -oE '[0-9]+' | head -1)
+  if [ -z "$CSDK" ]; then
+    CSDK=$("$SDKM" --sdk_root="$ANDROID_HOME" --list 2>/dev/null | grep -oE 'platforms;android-[0-9]+' | grep -oE '[0-9]+' | sort -n | tail -1)
+  fi
+  if [ -n "$CSDK" ] && [ ! -d "$ANDROID_HOME/platforms/android-$CSDK" ]; then
+    info "Installing platform android-$CSDK ..."
+    "$SDKM" --sdk_root="$ANDROID_HOME" "platforms;android-$CSDK" || warn "Could not install platform android-$CSDK; Gradle may fetch it during the build."
+  fi
+
+  # 3. Make sure at least one build-tools is present (newest available).
+  if [ ! -d "$ANDROID_HOME/build-tools" ] || [ -z "$(ls -A "$ANDROID_HOME/build-tools" 2>/dev/null)" ]; then
+    local BT
+    BT=$("$SDKM" --sdk_root="$ANDROID_HOME" --list 2>/dev/null | grep -oE 'build-tools;[0-9.]+' | sort -V | tail -1)
+    [ -z "$BT" ] && BT='build-tools;35.0.0'
+    info "Installing $BT ..."
+    "$SDKM" --sdk_root="$ANDROID_HOME" "$BT" || warn "Could not install $BT; Gradle may fetch it during the build."
+  fi
+
+  cd "$proj" 2>/dev/null
+  return 0
 }
 
 # --- per-type dispatch -----------------------------------------------------
@@ -157,37 +215,48 @@ case "$TYPE" in
     ;;
 
   ANDROID)
+    ensure_android_sdk || { show_result 1; exit 1; }
     need java "JDK"
     setup_android_sdk
     if [ ! -f ./gradlew ]; then
       error "gradlew not found in the project root. This Android project is missing its wrapper."
       exit 1
     fi
-    info "Building APK with ./gradlew assembleDebug ..."
-    run_gradlew assembleDebug
+    if [ "$BUILD_TYPE" = "release" ]; then
+      ASSEMBLE_TASK="assembleRelease"
+      OUT_DIR="release"
+    else
+      ASSEMBLE_TASK="assembleDebug"
+      OUT_DIR="debug"
+    fi
+    info "Building APK with ./gradlew $ASSEMBLE_TASK $GRADLE_ARGS ..."
+    # $GRADLE_ARGS is intentionally unquoted so multiple flags word-split into separate args.
+    run_gradlew "$ASSEMBLE_TASK" $GRADLE_ARGS
     code=$?
     if [ "$code" -eq 0 ]; then
-      apk="$(ls -t app/build/outputs/apk/debug/*.apk build/outputs/apk/debug/*.apk 2>/dev/null | head -n1)"
+      apk="$(ls -t "app/build/outputs/apk/$OUT_DIR"/*.apk "build/outputs/apk/$OUT_DIR"/*.apk 2>/dev/null | head -n1)"
       if [ -n "$apk" ]; then
         apk_abs="$(cd "$(dirname "$apk")" 2>/dev/null && pwd)/$(basename "$apk")"
         info "APK built: $apk_abs"
         info "Installing… (confirm the system prompt)"
       else
-        warn "Build succeeded but no APK was found under app/build/outputs/apk/debug/."
+        warn "Build succeeded but no APK was found under app/build/outputs/apk/$OUT_DIR/."
       fi
     fi
     show_result $code
     ;;
 
   SYNC)
+    ensure_android_sdk || { show_result 1; exit 1; }
     need java "JDK"
     setup_android_sdk
     if [ ! -f ./gradlew ]; then
       error "gradlew not found in the project root."
       exit 1
     fi
-    info "Syncing Gradle dependencies (./gradlew --refresh-dependencies) ..."
-    run_gradlew --refresh-dependencies tasks
+    info "Syncing Gradle dependencies (./gradlew --refresh-dependencies tasks $GRADLE_ARGS) ..."
+    # $GRADLE_ARGS is intentionally unquoted so multiple flags word-split into separate args.
+    run_gradlew --refresh-dependencies tasks $GRADLE_ARGS
     show_result $?
     ;;
 

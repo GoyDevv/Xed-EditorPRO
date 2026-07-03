@@ -36,6 +36,7 @@ class RunService : Service() {
 
     @Volatile private var proc: Process? = null
     @Volatile private var lastNotifyAt = 0L
+    @Volatile private var stopped = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -47,10 +48,7 @@ class RunService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
-            stopProcess()
-            RunOutputState.onFinished(-1)
-            stopForegroundCompat(remove = true)
-            stopSelf()
+            performStop()
             return START_NOT_STICKY
         }
 
@@ -61,7 +59,8 @@ class RunService : Service() {
         val syncProjectDir = intent?.getStringExtra(EXTRA_SYNC_DIR)
 
         startForegroundCompat(buildNotification(label, "Starting…", ongoing = true))
-        RunOutputState.setStopper { stopProcess() }
+        RunOutputState.setStopper { performStop() }
+        stopped = false
 
         scope.launch {
             val sb = StringBuilder()
@@ -87,19 +86,26 @@ class RunService : Service() {
                 t1.join()
                 t2.join()
                 RunOutputState.onOutput(sb.toString())
-                RunOutputState.onFinished(exit)
-                if (exit == 0) {
-                    // A successful gradle sync/build marks the project synced for this session.
-                    if (syncProjectDir != null) ProjectRunner.markSynced(syncProjectDir)
-                    // Android: install the freshly built APK.
-                    if (apkProjectDir != null) ApkInstaller.install(applicationContext, apkProjectDir)
+                if (stopped) {
+                    // User cancelled: don't mark synced, don't install, don't claim success.
+                    RunOutputState.onFinished(-1)
+                    runCatching { notificationManager.cancel(NOTIFICATION_ID) }
+                } else {
+                    RunOutputState.onFinished(exit)
+                    if (exit == 0) {
+                        // A successful gradle sync/build marks the project synced for this session.
+                        if (syncProjectDir != null) ProjectRunner.markSynced(syncProjectDir)
+                        // Android: install the freshly built APK.
+                        if (apkProjectDir != null) ApkInstaller.install(applicationContext, apkProjectDir)
+                    }
+                    showResultNotification(label, exit)
                 }
-                showResultNotification(label, exit)
             } catch (e: Exception) {
                 synchronized(lock) { sb.appendLine("Error: ${e.message}") }
                 RunOutputState.onOutput(sb.toString())
                 RunOutputState.onFinished(-1)
-                showResultNotification(label, -1)
+                if (stopped) runCatching { notificationManager.cancel(NOTIFICATION_ID) }
+                else showResultNotification(label, -1)
             } finally {
                 proc = null
                 // DETACH so the final result notification stays visible after the service stops.
@@ -116,8 +122,18 @@ class RunService : Service() {
     }
 
     private fun stopProcess() {
-        runCatching { proc?.destroy() }
+        stopped = true
+        runCatching { proc?.destroyForcibly() }
         proc = null
+    }
+
+    /** Full teardown: kill the build, remove the notification, and stop the foreground service. */
+    private fun performStop() {
+        stopProcess()
+        RunOutputState.onFinished(-1)
+        runCatching { notificationManager.cancel(NOTIFICATION_ID) }
+        stopForegroundCompat(remove = true)
+        stopSelf()
     }
 
     private fun maybeUpdateNotification(label: String) {

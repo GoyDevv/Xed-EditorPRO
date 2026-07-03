@@ -7,6 +7,8 @@ import com.rk.activities.terminal.Terminal
 import com.rk.commands.ActionContext
 import com.rk.commands.GlobalCommand
 import com.rk.commands.KeyCombination
+import com.rk.file.FileWrapper
+import com.rk.filetree.FileTreeTab
 import com.rk.icons.Icon
 import com.rk.resources.drawables
 import com.rk.resources.getString
@@ -30,11 +32,22 @@ class TerminalCommand : GlobalCommand() {
         activity.startActivity(intent)
     }
 
-    /** The current editor tab's project directory, translated to a sandbox-reachable path. */
+    /** The current editor tab's project directory, or the drawer-selected folder, as a sandbox path. */
     private fun currentProjectDir(): String? {
-        val tab = MainActivity.instance?.viewModel?.tabManager?.currentTab as? EditorTab ?: return null
-        val rootPath = ProjectRunner.resolveProjectRootPath(tab.projectRoot, tab.file) ?: return null
-        return ProjectRunner.toSandboxPath(rootPath)
+        val activity = MainActivity.instance ?: return null
+        // 1. An editor tab is open — use its project/file directory (same as the Run button).
+        (activity.viewModel.tabManager?.currentTab as? EditorTab)?.let { tab ->
+            ProjectRunner.resolveProjectRootPath(tab.projectRoot, tab.file)?.let {
+                return ProjectRunner.toSandboxPath(it)
+            }
+        }
+        // 2. No file open — fall back to the directory selected in the drawer's file tree, so the
+        //    terminal still opens in the project instead of the sandbox home.
+        val drawerRoot = (activity.drawerViewModel.currentDrawerTab as? FileTreeTab)?.root
+        if (drawerRoot is FileWrapper) {
+            return ProjectRunner.toSandboxPath(drawerRoot.getAbsolutePath())
+        }
+        return null
     }
 
     override fun isSupported(): Boolean = InbuiltFeatures.terminal.state.value

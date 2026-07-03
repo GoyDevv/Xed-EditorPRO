@@ -41,6 +41,7 @@ fun AddProjectSheet(
     showPrivateFileWarning: (onOK: () -> Unit) -> Unit,
     showGitCloneDialog: () -> Unit,
     showCreateProject: () -> Unit,
+    showProjects: () -> Unit,
 ) {
     val context = LocalContext.current
     val activity = context as MainActivity
@@ -56,6 +57,16 @@ fun AddProjectSheet(
                 description = stringResource(strings.create_project_desc),
                 onClick = {
                     showCreateProject()
+                    onDismiss()
+                },
+            )
+
+            AddDialogItem(
+                icon = Icon.ResourceIcon(drawables.folder),
+                title = "Projects & Repositories",
+                description = "Browse and open your existing projects",
+                onClick = {
+                    showProjects()
                     onDismiss()
                 },
             )
