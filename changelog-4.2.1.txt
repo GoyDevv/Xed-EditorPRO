@@ -6,11 +6,12 @@ launch screen, a smoother interface, and a batch of quality-of-life fixes.
 ────────────────────────────────────────────────────────────────────────────────
 ✨ Startup
 ────────────────────────────────────────────────────────────────────────────────
-• New animated launch screen: "XED PRO" reveals letter-by-letter, settles, then zooms away and
-  hands off smoothly to the app.
-• Uses your selected app font and a clean dark backdrop; tuned to stay smooth on startup.
-• The launch animation now waits for the app to fully load behind it before playing, so it runs at a
-  steady 60fps with no jank or theme flashing, then reveals the ready app instantly.
+• Redesigned launch screen: the "XED PRO" wordmark with a "by GoyDevv" tagline, a loading progress
+  bar and a live status line ("Preparing workspace…", "Loading editor…", "Almost ready…"), on a
+  clean dark backdrop using your selected app font.
+• It's load-first: the progress bar only completes once the app has fully loaded behind it, so the
+  whole thing runs at a steady 60fps with no jank or theme flashing and reveals the ready app
+  instantly.
 
 ────────────────────────────────────────────────────────────────────────────────
 🧭 Interface
@@ -20,37 +21,75 @@ launch screen, a smoother interface, and a batch of quality-of-life fixes.
 • When no file is open, the editor now shows a project overview instead of a bare link:
   the project name, its path, the detected main language, and an "Open file tree" button.
 • The build output and other UI now use the font you pick in Settings.
+• A one-time "What's new" dialog now appears after an update, with a "Never show again for this
+  version" option — it keeps showing each launch until you tick it and dismiss.
+• The app's terminal home directory is now exposed to other apps (via the system file picker) by
+  default, so your projects are reachable from elsewhere. You can turn it off in Settings › Terminal.
 
 ────────────────────────────────────────────────────────────────────────────────
 📁 Files
 ────────────────────────────────────────────────────────────────────────────────
 • New "+" option: create a file directly in the project root. You can type a path like
   src/utils/File.kt and any missing folders are created for you.
+• New "+" option: Projects & Repositories — a bottom sheet that lists every project and cloned
+  repository in your workspace (it intelligently shows only real projects), with each one's type,
+  package name, creation date, last-edited time and on-disk size. Tap one to open it.
 • Fixed the temporary-file dialog that used to close by itself.
+• The Terminal button now opens in the selected project folder even when no file is open (it used to
+  fall back to the sandbox home).
 
 ────────────────────────────────────────────────────────────────────────────────
 🧰 Create Project — redesigned
 ────────────────────────────────────────────────────────────────────────────────
 • Now a rounded bottom sheet instead of a plain dialog, with a clear, organized layout and room to
   breathe.
-• New icon-based template chooser: each template (None, Python, Node.js, Static Web, Minecraft Java
-  Mod, Android/Jetpack Compose) shows its own icon and a short description, so it's obvious what you
-  get before you pick.
+• New icon-based template chooser: a compact, swipeable row of template tiles (None, Python,
+  Node.js, Static Web, Minecraft Java Mod, Android/Jetpack Compose), each with its own icon, and a
+  one-line description of the selected one — so it's obvious what you get before you pick.
 • Grouped into tidy sections — Template, Project details, Package, and Options — each with its own
   heading and icon, and text fields with leading icons.
-• Real-time package name hint: as you type the project name and author, the Package field shows the
-  exact applicationId that will be generated (e.g. com.author.appname), with a live preview card so
-  you always know what's being created.
+• Real-time package name: as you type the project name and author, the Package field itself is
+  filled in with the generated applicationId (e.g. com.author.appname) live — and the moment you
+  edit it, your own value is kept as-is.
 • Template-aware options (Minecraft mod loader / version / id, JDK version, Git init) appear only
   when they apply, and the resolved project location and required-toolchain status are shown inline.
 • Android projects can now pick their SDK (compile/target API level) from a live list fetched from
-  Google's SDK repository — newest to oldest — instead of a fixed version, and the generated
-  build.gradle.kts uses your choice (minSdk is kept sensible automatically).
+  Google's SDK repository — newest to oldest, each labelled with its Android version (e.g. "API 35 ·
+  Android 15") — instead of a fixed version, and the generated build.gradle.kts uses your choice
+  (minSdk is kept sensible automatically).
+• After an Android project is created, a Gradle sync starts automatically (Android Studio style) —
+  it downloads the Android SDK first if it's missing, then configures the build.
+
+────────────────────────────────────────────────────────────────────────────────
+🧱 Project templates — now build for real
+────────────────────────────────────────────────────────────────────────────────
+• Android: the generated project now uses the same proven toolchain the IDE itself ships with
+  (AGP 9.2.1, Kotlin 2.3.20, Gradle 9.5.1, Compose BOM 2025.11.01), so it compiles against the
+  latest SDK levels you pick (up to Android 17 / API 37) instead of failing on an old plugin.
+• Fabric: yarn mappings, loader and Fabric API versions are now resolved for your chosen Minecraft
+  version from Fabric's official meta API and Modrinth — real, published versions that actually
+  resolve — with offline fallbacks if there's no connection.
+• Forge: the Forge build is resolved for your Minecraft version from the official promotions
+  manifest, the Forge Maven repository is included, and the loader version ranges + resource
+  pack_format are derived from the version. (pack_format only affects an in-game warning.)
+• The JDK is chosen automatically to match the Minecraft version (1.20.5+/1.21+ → 21,
+  1.17–1.20.4 → 17, older → 8), and you can still override it.
+• Minecraft version list tracks the current scheme, including the 2026 year-based releases
+  (e.g. 26.2), fetched live from Mojang — the matching JDK is picked automatically.
+• Builds/sync install the exact SDK platform your project targets (read from compileSdk), not just
+  the newest one.
+• Android projects include example unit + instrumented tests, matching a real Android Studio
+  "Empty Activity" project.
 
 ────────────────────────────────────────────────────────────────────────────────
 ▶ Build & Run
 ────────────────────────────────────────────────────────────────────────────────
 • Refined build/run output panel with live streaming and smooth open/close.
+• First-build heads-up: the first time you build or sync a Gradle project, a one-time reminder
+  explains it can take ~10–20 minutes (it downloads the SDK and dependencies); shown once per
+  project.
+• Gradle sync now downloads the Android SDK (and a JDK) automatically before building if they aren't
+  installed yet, so the first sync/build is self-contained.
 • Stopping a build (or closing the output) now truly stops it — the process ends, the notification
   clears, and the app no longer keeps running the build in the background. No more false
   "finished successfully" after you hit Stop.

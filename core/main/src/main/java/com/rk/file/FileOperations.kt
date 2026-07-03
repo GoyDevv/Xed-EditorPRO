@@ -38,6 +38,11 @@ object FileOperations {
         MainActivity.instance?.fileManager?.requestAddFile(parentFile)
     }
 
+    /** Opens a multi-select picker and imports the chosen files into [parentFile]. */
+    fun importFiles(parentFile: FileObject) {
+        MainActivity.instance?.fileManager?.requestImportFiles(parentFile)
+    }
+
     /**
      * Recursively calculates the total size and item count (files and directories) within a given folder or file.
      *

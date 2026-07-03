@@ -16,7 +16,7 @@ import org.eclipse.jgit.api.Git
 object ProjectScaffolder {
 
     sealed interface Result {
-        data class Success(val projectRoot: File) : Result
+        data class Success(val projectRoot: File, val warning: String? = null) : Result
 
         data class Failure(val message: String, val cause: Throwable? = null) : Result
     }
@@ -34,19 +34,38 @@ object ProjectScaffolder {
                         )
                     }
 
-                    when (config.template) {
-                        ProjectTemplate.NONE -> scaffoldNone(root, config)
-                        ProjectTemplate.PYTHON3 -> scaffoldPython(root, config, python3 = true)
-                        ProjectTemplate.PYTHON -> scaffoldPython(root, config, python3 = false)
-                        ProjectTemplate.NODEJS -> scaffoldNode(root, config)
-                        ProjectTemplate.WEB -> scaffoldWeb(root, config)
-                        ProjectTemplate.MINECRAFT_MOD -> scaffoldMinecraft(root, config)
-                        ProjectTemplate.ANDROID_COMPOSE -> scaffoldAndroidCompose(root, config)
-                    }
+                    val warning: String? =
+                        when (config.template) {
+                            ProjectTemplate.NONE -> {
+                                scaffoldNone(root, config)
+                                null
+                            }
+                            ProjectTemplate.PYTHON3 -> {
+                                scaffoldPython(root, config, python3 = true)
+                                null
+                            }
+                            ProjectTemplate.PYTHON -> {
+                                scaffoldPython(root, config, python3 = false)
+                                null
+                            }
+                            ProjectTemplate.NODEJS -> {
+                                scaffoldNode(root, config)
+                                null
+                            }
+                            ProjectTemplate.WEB -> {
+                                scaffoldWeb(root, config)
+                                null
+                            }
+                            ProjectTemplate.MINECRAFT_MOD -> scaffoldMinecraft(root, config)
+                            ProjectTemplate.ANDROID_COMPOSE -> {
+                                scaffoldAndroidCompose(root, config)
+                                null
+                            }
+                        }
 
                     if (config.initGit) initGitRepository(root, config)
 
-                    Result.Success(root)
+                    Result.Success(root, warning)
                 }
                 .getOrElse { Result.Failure(it.message ?: "Unknown error while creating project", it) }
         }
@@ -226,20 +245,21 @@ object ProjectScaffolder {
     }
 
     // ---- Minecraft --------------------------------------------------------------
-    private fun scaffoldMinecraft(root: File, config: ProjectConfig) {
+    private fun scaffoldMinecraft(root: File, config: ProjectConfig): String? =
         when (config.modLoader) {
             ModLoader.FORGE -> scaffoldForge(root, config)
             else -> scaffoldFabric(root, config)
         }
-    }
 
-    private fun scaffoldFabric(root: File, config: ProjectConfig) {
+    private fun scaffoldFabric(root: File, config: ProjectConfig): String? {
         val modId = config.resolvedModId()
         val pkg = config.resolvedPackageName()
         val pkgPath = pkg.replace('.', '/')
         val mainClass = config.name.replace(Regex("[^A-Za-z0-9]"), "").ifBlank { "ExampleMod" }
         val mc = config.minecraftVersion.ifBlank { "1.21.1" }
         val jdk = config.jdkVersion.ifBlank { "21" }
+        // Resolve real, published Fabric versions for this Minecraft version (falls back offline).
+        val pins = ModVersions.fabricPins(mc)
 
         root.write(
             "gradle.properties",
@@ -247,10 +267,10 @@ object ProjectScaffolder {
             org.gradle.jvmargs=-Xmx2G
             org.gradle.parallel=true
 
-            # Fabric Properties (adjust loader/api/yarn versions for your target Minecraft version)
+            # Fabric Properties (resolved for Minecraft $mc)
             minecraft_version=$mc
-            yarn_mappings=$mc+build.1
-            loader_version=0.16.9
+            yarn_mappings=${pins.yarn}
+            loader_version=${pins.loader}
 
             # Mod Properties
             mod_version=${config.modVersion}
@@ -258,7 +278,7 @@ object ProjectScaffolder {
             archives_base_name=$modId
 
             # Fabric API
-            fabric_version=0.100.0+$mc
+            fabric_version=${pins.fabricApi}
             """
                 .trimIndent() + "\n",
         )
@@ -273,6 +293,8 @@ object ProjectScaffolder {
                     gradlePluginPortal()
                 }
             }
+
+            rootProject.name = '$modId'
             """
                 .trimIndent() + "\n",
         )
@@ -338,7 +360,7 @@ object ProjectScaffolder {
               },
               "mixins": ["$modId.mixins.json"],
               "depends": {
-                "fabricloader": ">=0.16.9",
+                "fabricloader": ">=${pins.loader}",
                 "minecraft": "~$mc",
                 "java": ">=$jdk",
                 "fabric-api": "*"
@@ -387,15 +409,28 @@ object ProjectScaffolder {
 
         writeGradleWrapper(root, "8.10")
         root.write("README.md", minecraftReadme(config, "Fabric", mc, jdk))
+
+        return if (!pins.online) {
+            "Couldn't fetch the latest Fabric versions (offline?). gradle.properties uses fallback " +
+                "versions — check yarn_mappings / loader_version / fabric_version before building."
+        } else {
+            null
+        }
     }
 
-    private fun scaffoldForge(root: File, config: ProjectConfig) {
+    private fun scaffoldForge(root: File, config: ProjectConfig): String? {
         val modId = config.resolvedModId()
         val pkg = config.resolvedPackageName()
         val pkgPath = pkg.replace('.', '/')
         val mainClass = config.name.replace(Regex("[^A-Za-z0-9]"), "").ifBlank { "ExampleMod" }
         val mc = config.minecraftVersion.ifBlank { "1.20.1" }
         val jdk = config.jdkVersion.ifBlank { "17" }
+        // Resolve the real Forge build for this Minecraft version (recommended/latest), falling back
+        // to a known 1.20.1 build offline. The loader major (e.g. 47) drives the version ranges below.
+        val resolvedForge = ModVersions.forgeBuild(mc)
+        val forge = resolvedForge ?: "47.3.0"
+        val forgeMajor = forge.substringBefore(".").ifBlank { "47" }
+        val packFormat = packFormatForMc(mc)
 
         root.write(
             "gradle.properties",
@@ -404,8 +439,8 @@ object ProjectScaffolder {
             org.gradle.daemon=false
 
             minecraft_version=$mc
-            # Pick a Forge build that matches your Minecraft version (see https://files.minecraftforge.net)
-            forge_version=47.3.0
+            # Resolved Forge build for Minecraft $mc
+            forge_version=$forge
             mod_id=$modId
             mod_version=${config.modVersion}
             maven_group=$pkg
@@ -447,6 +482,7 @@ object ProjectScaffolder {
 
             repositories {
                 mavenCentral()
+                maven { url = 'https://maven.minecraftforge.net/' }
             }
 
             dependencies {
@@ -470,7 +506,7 @@ object ProjectScaffolder {
             "src/main/resources/META-INF/mods.toml",
             """
             modLoader="javafml"
-            loaderVersion="[47,)"
+            loaderVersion="[$forgeMajor,)"
             license="MIT"
 
             [[mods]]
@@ -485,7 +521,7 @@ object ProjectScaffolder {
             [[dependencies.$modId]]
                 modId="forge"
                 mandatory=true
-                versionRange="[47,)"
+                versionRange="[$forgeMajor,)"
                 ordering="NONE"
                 side="BOTH"
 
@@ -505,7 +541,7 @@ object ProjectScaffolder {
             {
               "pack": {
                 "description": "${config.name} resources",
-                "pack_format": 15
+                "pack_format": $packFormat
               }
             }
             """
@@ -537,8 +573,16 @@ object ProjectScaffolder {
                 .trimIndent() + "\n",
         )
 
-        writeGradleWrapper(root, "8.8")
+        writeGradleWrapper(root, "8.1.1")
         root.write("README.md", minecraftReadme(config, "Forge", mc, jdk))
+
+        return if (resolvedForge == null) {
+            "Couldn't resolve a Forge build for Minecraft $mc (offline, or Forge has none for it). " +
+                "Using $forge — verify forge_version, or pick a different Minecraft version. The Forge " +
+                "template targets 1.20.x-style APIs; newer versions may need small tweaks."
+        } else {
+            null
+        }
     }
 
     private fun minecraftReadme(config: ProjectConfig, loader: String, mc: String, jdk: String): String =
@@ -556,12 +600,27 @@ object ProjectScaffolder {
         """
             .trimIndent() + "\n"
 
+    /** Resource-pack format for a Minecraft version (best-effort; only affects an in-game warning). */
+    private fun packFormatForMc(mc: String): Int =
+        when {
+            mc.startsWith("1.21.4") -> 46
+            mc.startsWith("1.21.2") || mc.startsWith("1.21.3") -> 42
+            mc.startsWith("1.21") -> 34
+            mc.startsWith("1.20.5") || mc.startsWith("1.20.6") -> 32
+            mc.startsWith("1.20.3") || mc.startsWith("1.20.4") -> 22
+            mc.startsWith("1.20.2") -> 18
+            mc.startsWith("1.20") -> 15
+            mc.startsWith("1.19") -> 9
+            else -> 15
+        }
+
     // ---- Android Jetpack Compose (faithful Android Studio "Empty Activity" project) -----
 
     private fun scaffoldAndroidCompose(root: File, config: ProjectConfig) {
         val pkg = config.resolvedPackageName()
         val pkgPath = pkg.replace('.', '/')
         val jdk = config.jdkVersion.ifBlank { "17" }
+        val jvmTargetEnum = if (jdk == "8") "JVM_1_8" else "JVM_$jdk"
         val sdk = config.resolvedCompileSdk()
         val minSdk = config.resolvedMinSdk()
         val appNoSpace = config.name.replace(Regex("[^A-Za-z0-9]"), "").ifBlank { "App" }
@@ -617,15 +676,15 @@ object ProjectScaffolder {
             "gradle/libs.versions.toml",
             """
             [versions]
-            agp = "8.5.2"
-            kotlin = "2.0.0"
-            coreKtx = "1.13.1"
+            agp = "9.2.1"
+            kotlin = "2.3.20"
+            coreKtx = "1.17.0"
             junit = "4.13.2"
-            junitVersion = "1.2.1"
-            espressoCore = "3.6.1"
-            lifecycleRuntimeKtx = "2.8.6"
-            activityCompose = "1.9.2"
-            composeBom = "2024.09.00"
+            junitVersion = "1.3.0"
+            espressoCore = "3.7.0"
+            lifecycleRuntimeKtx = "2.10.0"
+            activityCompose = "1.12.0"
+            composeBom = "2025.11.01"
 
             [libraries]
             androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -669,6 +728,8 @@ object ProjectScaffolder {
         root.write(
             "app/build.gradle.kts",
             """
+            import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
             plugins {
                 alias(libs.plugins.android.application)
                 alias(libs.plugins.kotlin.android)
@@ -703,8 +764,11 @@ object ProjectScaffolder {
                     sourceCompatibility = JavaVersion.VERSION_$jdk
                     targetCompatibility = JavaVersion.VERSION_$jdk
                 }
-                kotlinOptions { jvmTarget = "$jdk" }
                 buildFeatures { compose = true }
+            }
+
+            kotlin {
+                compilerOptions { jvmTarget = JvmTarget.$jvmTargetEnum }
             }
 
             dependencies {
@@ -811,6 +875,49 @@ object ProjectScaffolder {
             @Composable
             fun GreetingPreview() {
                 MaterialTheme { Greeting("Android") }
+            }
+            """
+                .trimIndent() + "\n",
+        )
+
+        // Example unit + instrumented tests (matches Android Studio's Empty Activity template).
+        root.write(
+            "app/src/test/java/$pkgPath/ExampleUnitTest.kt",
+            """
+            package $pkg
+
+            import org.junit.Assert.assertEquals
+            import org.junit.Test
+
+            /** Example local unit test, which will execute on the development machine (host). */
+            class ExampleUnitTest {
+                @Test
+                fun addition_isCorrect() {
+                    assertEquals(4, 2 + 2)
+                }
+            }
+            """
+                .trimIndent() + "\n",
+        )
+        root.write(
+            "app/src/androidTest/java/$pkgPath/ExampleInstrumentedTest.kt",
+            """
+            package $pkg
+
+            import androidx.test.ext.junit.runners.AndroidJUnit4
+            import androidx.test.platform.app.InstrumentationRegistry
+            import org.junit.Assert.assertEquals
+            import org.junit.Test
+            import org.junit.runner.RunWith
+
+            /** Instrumented test, which will execute on an Android device. */
+            @RunWith(AndroidJUnit4::class)
+            class ExampleInstrumentedTest {
+                @Test
+                fun useAppContext() {
+                    val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+                    assertEquals("$pkg", appContext.packageName)
+                }
             }
             """
                 .trimIndent() + "\n",
@@ -961,7 +1068,7 @@ object ProjectScaffolder {
                 .trimIndent() + "\n",
         )
 
-        writeGradleWrapper(root, "8.9")
+        writeGradleWrapper(root, "9.5.1")
 
         root.write(
             "README.md",

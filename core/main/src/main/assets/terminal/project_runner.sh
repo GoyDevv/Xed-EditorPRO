@@ -113,6 +113,56 @@ run_gradlew() {
   fi
 }
 
+# Make sure the Android SDK (and a JDK) are present before building. If they're missing, download and
+# install them now — the "download the SDK before the build" step for Gradle sync/first build. This
+# mirrors the "Android SDK" entry in the Dependencies dialog and is idempotent (a no-op once present).
+ensure_android_sdk() {
+  export ANDROID_HOME="$HOME/android-sdk"
+  export ANDROID_SDK_ROOT="$ANDROID_HOME"
+  local proj="$PWD"
+  local SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+
+  # 1. Bootstrap the SDK (JDK + command-line tools + platform-tools) if it isn't installed yet.
+  if [ ! -x "$ANDROID_HOME/platform-tools/adb" ] || ! command_exists java; then
+    info "Android SDK not found — downloading it now (this can take a while) ..."
+    apt-get update -y && apt-get install -y wget unzip openjdk-17-jdk || { error "Could not install prerequisites (wget/unzip/JDK)."; cd "$proj" 2>/dev/null; return 1; }
+    mkdir -p "$ANDROID_HOME/cmdline-tools"
+    cd "$ANDROID_HOME/cmdline-tools" || { cd "$proj" 2>/dev/null; return 1; }
+    wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O clt.zip || { error "Failed to download Android command-line tools."; cd "$proj" 2>/dev/null; return 1; }
+    unzip -q -o clt.zip && rm -f clt.zip && rm -rf latest && mv cmdline-tools latest
+    yes | "$SDKM" --sdk_root="$ANDROID_HOME" --licenses >/dev/null 2>&1 || true
+    "$SDKM" --sdk_root="$ANDROID_HOME" "platform-tools" || { error "Android SDK platform-tools install failed."; cd "$proj" 2>/dev/null; return 1; }
+    cd "$proj" 2>/dev/null
+  fi
+
+  [ -x "$SDKM" ] || return 0
+  yes | "$SDKM" --sdk_root="$ANDROID_HOME" --licenses >/dev/null 2>&1 || true
+
+  # 2. Install the EXACT platform the project targets (compileSdk from the build file), so AGP
+  #    doesn't have to fetch it mid-build; fall back to the newest available platform.
+  local CSDK
+  CSDK=$(grep -hoE 'compileSdk[[:space:]]*=?[[:space:]]*[0-9]+' app/build.gradle.kts build.gradle.kts app/build.gradle build.gradle 2>/dev/null | grep -oE '[0-9]+' | head -1)
+  if [ -z "$CSDK" ]; then
+    CSDK=$("$SDKM" --sdk_root="$ANDROID_HOME" --list 2>/dev/null | grep -oE 'platforms;android-[0-9]+' | grep -oE '[0-9]+' | sort -n | tail -1)
+  fi
+  if [ -n "$CSDK" ] && [ ! -d "$ANDROID_HOME/platforms/android-$CSDK" ]; then
+    info "Installing platform android-$CSDK ..."
+    "$SDKM" --sdk_root="$ANDROID_HOME" "platforms;android-$CSDK" || warn "Could not install platform android-$CSDK; Gradle may fetch it during the build."
+  fi
+
+  # 3. Make sure at least one build-tools is present (newest available).
+  if [ ! -d "$ANDROID_HOME/build-tools" ] || [ -z "$(ls -A "$ANDROID_HOME/build-tools" 2>/dev/null)" ]; then
+    local BT
+    BT=$("$SDKM" --sdk_root="$ANDROID_HOME" --list 2>/dev/null | grep -oE 'build-tools;[0-9.]+' | sort -V | tail -1)
+    [ -z "$BT" ] && BT='build-tools;35.0.0'
+    info "Installing $BT ..."
+    "$SDKM" --sdk_root="$ANDROID_HOME" "$BT" || warn "Could not install $BT; Gradle may fetch it during the build."
+  fi
+
+  cd "$proj" 2>/dev/null
+  return 0
+}
+
 # --- per-type dispatch -----------------------------------------------------
 
 case "$TYPE" in
@@ -165,6 +215,7 @@ case "$TYPE" in
     ;;
 
   ANDROID)
+    ensure_android_sdk || { show_result 1; exit 1; }
     need java "JDK"
     setup_android_sdk
     if [ ! -f ./gradlew ]; then
@@ -196,6 +247,7 @@ case "$TYPE" in
     ;;
 
   SYNC)
+    ensure_android_sdk || { show_result 1; exit 1; }
     need java "JDK"
     setup_android_sdk
     if [ ! -f ./gradlew ]; then

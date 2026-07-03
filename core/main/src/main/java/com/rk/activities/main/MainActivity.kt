@@ -179,6 +179,15 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             }
+
+            // One-time "What's new" dialog, shown once the splash has handed off. Re-appears each
+            // launch until the user ticks "Never show again for this version".
+            var changelogDismissed by rememberSaveable { mutableStateOf(false) }
+            if (splashDone && !changelogDismissed && com.rk.components.ChangelogInfo.shouldShow()) {
+                com.rk.theme.XedTheme {
+                    com.rk.components.ChangelogDialog(onClose = { changelogDismissed = true })
+                }
+            }
         }
     }
 

@@ -71,7 +71,7 @@ object Settings {
     var open_dir_warning_dismissed by CachedPreference("open_dir_warning_dismissed", false)
     var anr_watchdog by CachedPreference("anr", BuildConfig.DEBUG)
     var strict_mode by CachedPreference("strict_mode", BuildConfig.DEBUG)
-    var expose_home_dir by CachedPreference("expose_home_dir", false)
+    var expose_home_dir by CachedPreference("expose_home_dir", true)
     var verbose_error by CachedPreference("verbose_error", BuildConfig.DEBUG)
     var project_as_pwd by CachedPreference("project_as_pwd", true)
     var terminate_sessions_on_exit by CachedPreference("terminate_sessions_on_exit", false)

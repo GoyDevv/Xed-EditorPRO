@@ -59,6 +59,15 @@ object GradleConfig {
 
     private fun keyBuild(root: File) = "gradle_buildtype::${root.absolutePath}"
 
+    private fun keyFirstBuild(root: File) = "gradle_first_build_shown::${root.absolutePath}"
+
+    // ---- First-build reminder -------------------------------------------------------------------
+
+    /** Whether the "first build can take a while" reminder has already been shown for [root]. */
+    fun firstBuildShown(root: File): Boolean = Preference.getBoolean(keyFirstBuild(root), false)
+
+    fun setFirstBuildShown(root: File) = Preference.setBoolean(keyFirstBuild(root), true)
+
     // ---- Additional flags -----------------------------------------------------------------------
 
     /** The set of currently-enabled flag args for [root]. */

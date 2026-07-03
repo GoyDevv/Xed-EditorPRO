@@ -11,10 +11,14 @@ import com.rk.file.localBinDir
 import com.rk.projects.DetectedProjectType
 import com.rk.projects.GradleConfig
 import com.rk.projects.ProjectTypeDetector
+import com.rk.resources.strings
 import com.rk.runner.runners.web.html.HtmlRunner
 import com.rk.terminal.setupAssetFile
 import com.rk.terminal.setupTerminalFiles
+import com.rk.utils.dialogRes
 import java.io.File
+import kotlin.coroutines.resume
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
  * Project-aware "Run" entry point used by the editor's play button.
@@ -59,6 +63,33 @@ object ProjectRunner {
             type == DetectedProjectType.GRADLE ||
             type == DetectedProjectType.FABRIC_MOD ||
             type == DetectedProjectType.FORGE_MOD
+
+    /**
+     * Shows a one-time (per project) heads-up that the first Gradle build/sync can take a while
+     * because it downloads the SDK and dependencies. Suspends until the user chooses; returns true to
+     * proceed, false if they cancelled. Subsequent builds skip the dialog.
+     */
+    private suspend fun awaitFirstBuildAck(rootFile: File): Boolean {
+        if (GradleConfig.firstBuildShown(rootFile)) return true
+        return suspendCancellableCoroutine { cont ->
+            dialogRes(
+                title = "Setting up \"${rootFile.name}\"",
+                msg =
+                    "The first Gradle build/sync can take around 10–20 minutes.\n\n" +
+                        "It downloads the Gradle dependencies (and, for Android projects, the SDK and build-tools) " +
+                        "over your connection. Later builds are much faster. It keeps running in the background — " +
+                        "just keep the app open.",
+                okRes = strings.ok,
+                cancelRes = strings.cancel,
+                onOk = {
+                    GradleConfig.setFirstBuildShown(rootFile)
+                    if (cont.isActive) cont.resume(true)
+                },
+                onCancel = { if (cont.isActive) cont.resume(false) },
+                cancelable = false,
+            )
+        }
+    }
 
     @Synchronized
     fun detect(projectRootPath: String): DetectedProjectType {
@@ -127,6 +158,9 @@ object ProjectRunner {
             return
         }
 
+        // First-time heads-up (per project) for the potentially long first Gradle build.
+        if (isGradleType(type) && !awaitFirstBuildAck(rootFile)) return
+
         if (isTerminalInstalled()) {
             // Run headlessly in the background: no terminal screen is shown. Output and progress are
             // surfaced through the editor's floating build view + a notification (RunService).
@@ -189,6 +223,9 @@ object ProjectRunner {
         val rootFile = File(rootPath)
         val gradleArgs = GradleConfig.gradleArgs(rootFile)
         val buildType = GradleConfig.buildType(rootFile).id
+
+        // First-time heads-up (per project) — the first sync downloads the SDK and can be slow.
+        if (!awaitFirstBuildAck(rootFile)) return
 
         if (!RunOutputState.begin(label = label)) return
         RunService.start(

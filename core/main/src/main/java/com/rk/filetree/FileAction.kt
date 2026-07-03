@@ -272,6 +272,22 @@ object AddFileAction : FileAction() {
     override val type = FileActionType(file = false, folder = true, rootFolder = true)
 }
 
+object ImportFilesAction : FileAction() {
+    override val icon = Icon.ResourceIcon(drawables.download)
+    override val title = strings.import_files.getString()
+
+    override fun action(context: FileActionContext) {
+        FileOperations.importFiles(context.file)
+    }
+
+    override fun isSupported(file: FileObject): Boolean {
+        return file is FileWrapper
+    }
+
+    override val type = FileActionType(file = false, folder = true, rootFolder = true)
+    override val importance = 1
+}
+
 object OpenAsProjectAction : FileAction() {
     override val icon = Icon.ResourceIcon(drawables.folder_code)
     override val title = strings.open_as_project.getString()
