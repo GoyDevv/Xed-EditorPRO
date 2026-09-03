@@ -1,18 +1,25 @@
 {
     "spec": 1,
     "name": "Outfit",
-    "description": "Outfit by The Outfit Project, mapped to Discord's font slots for Revenge.",
+    "previewText": "Outfit",
     "main": {
-        "ggsans-Normal": "https://raw.githubusercontent.com/google/fonts/main/ofl/outfit/static/Outfit-Regular.ttf",
-        "ggsans-NormalItalic": "https://raw.githubusercontent.com/google/fonts/main/ofl/outfit/static/Outfit-Regular.ttf",
-        "ggsans-Medium": "https://raw.githubusercontent.com/google/fonts/main/ofl/outfit/static/Outfit-Medium.ttf",
-        "ggsans-MediumItalic": "https://raw.githubusercontent.com/google/fonts/main/ofl/outfit/static/Outfit-Medium.ttf",
-        "ggsans-Semibold": "https://raw.githubusercontent.com/google/fonts/main/ofl/outfit/static/Outfit-SemiBold.ttf",
-        "ggsans-SemiboldItalic": "https://raw.githubusercontent.com/google/fonts/main/ofl/outfit/static/Outfit-SemiBold.ttf",
-        "ggsans-Bold": "https://raw.githubusercontent.com/google/fonts/main/ofl/outfit/static/Outfit-Bold.ttf",
-        "ggsans-BoldItalic": "https://raw.githubusercontent.com/google/fonts/main/ofl/outfit/static/Outfit-Bold.ttf",
-        "ggsans-ExtraBold": "https://raw.githubusercontent.com/google/fonts/main/ofl/outfit/static/Outfit-ExtraBold.ttf",
-        "ggsans-ExtraBoldItalic": "https://raw.githubusercontent.com/google/fonts/main/ofl/outfit/static/Outfit-ExtraBold.ttf",
-        "SourceCodePro-Semibold": "https://raw.githubusercontent.com/google/fonts/main/ofl/outfit/static/Outfit-SemiBold.ttf"
+        "ABCGintoNord-ExtraBold": "https://github.com/GoyDevv/Xed-EditorPRO/raw/main/core/main/src/main/res/font/outfit_regular.ttf?raw=1",
+        "ggsans-Bold": "https://github.com/GoyDevv/Xed-EditorPRO/raw/main/core/main/src/main/res/font/outfit_regular.ttf?raw=1",
+        "ggsans-BoldItalic": "https://github.com/GoyDevv/Xed-EditorPRO/raw/main/core/main/src/main/res/font/outfit_regular.ttf?raw=1",
+        "ggsans-ExtraBold": "https://github.com/GoyDevv/Xed-EditorPRO/raw/main/core/main/src/main/res/font/outfit_regular.ttf?raw=1",
+        "ggsans-ExtraBoldItalic": "https://github.com/GoyDevv/Xed-EditorPRO/raw/main/core/main/src/main/res/font/outfit_regular.ttf?raw=1",
+        "ggsans-Medium": "https://github.com/GoyDevv/Xed-EditorPRO/raw/main/core/main/src/main/res/font/outfit_regular.ttf?raw=1",
+        "ggsans-MediumItalic": "https://github.com/GoyDevv/Xed-EditorPRO/raw/main/core/main/src/main/res/font/outfit_regular.ttf?raw=1",
+        "ggsans-Normal": "https://github.com/GoyDevv/Xed-EditorPRO/raw/main/core/main/src/main/res/font/outfit_regular.ttf?raw=1",
+        "ggsans-NormalItalic": "https://github.com/GoyDevv/Xed-EditorPRO/raw/main/core/main/src/main/res/font/outfit_regular.ttf?raw=1",
+        "ggsans-Semibold": "https://github.com/GoyDevv/Xed-EditorPRO/raw/main/core/main/src/main/res/font/outfit_regular.ttf?raw=1",
+        "ggsans-SemiboldItalic": "https://github.com/GoyDevv/Xed-EditorPRO/raw/main/core/main/src/main/res/font/outfit_regular.ttf?raw=1",
+        "NotoSans-Bold": "https://github.com/GoyDevv/Xed-EditorPRO/raw/main/core/main/src/main/res/font/outfit_regular.ttf?raw=1",
+        "NotoSans-ExtraBold": "https://github.com/GoyDevv/Xed-EditorPRO/raw/main/core/main/src/main/res/font/outfit_regular.ttf?raw=1",
+        "NotoSans-Medium": "https://github.com/GoyDevv/Xed-EditorPRO/raw/main/core/main/src/main/res/font/outfit_regular.ttf?raw=1",
+        "NotoSans-Normal": "https://github.com/GoyDevv/Xed-EditorPRO/raw/main/core/main/src/main/res/font/outfit_regular.ttf?raw=1",
+        "NotoSans-NormalItalic": "https://github.com/GoyDevv/Xed-EditorPRO/raw/main/core/main/src/main/res/font/outfit_regular.ttf?raw=1",
+        "NotoSans-Semibold": "https://github.com/GoyDevv/Xed-EditorPRO/raw/main/core/main/src/main/res/font/outfit_regular.ttf?raw=1",
+        "SourceCodePro-Semibold": "https://github.com/GoyDevv/Xed-EditorPRO/raw/main/core/main/src/main/res/font/outfit_regular.ttf?raw=1"
     }
 }
