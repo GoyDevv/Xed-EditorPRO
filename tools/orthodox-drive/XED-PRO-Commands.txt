@@ -18,13 +18,16 @@ IMPORTANT SECURITY
 1. BASIC XED / ANDROID TERMINAL SETUP
 -------------------------------------
 
-Create the destination folder:
+Create the destination folder INSIDE THE CURRENT TERMINAL DIRECTORY:
 
-    mkdir -p "/storage/emulated/0/Orthodox PDF Collection"
+    mkdir -p "./Orthodox PDF Collection"
 
 Check the folder:
 
-    ls -la "/storage/emulated/0/Orthodox PDF Collection"
+    ls -la "./Orthodox PDF Collection"
+
+This makes the workflow portable. Wherever the terminal is opened, the
+collection will be created as a subfolder of that working directory.
 
 
 2. CHECK rclone
@@ -84,7 +87,7 @@ The explicit shared-with-me source form was:
 
 This was the proven command that was visibly transferring the collection:
 
-    rclone copy "gdrive:Orthodox PDF Collection" "/storage/emulated/0/Orthodox PDF Collection" --drive-shared-with-me -P --transfers 2 --checkers 8 --retries 10 --low-level-retries 20 --create-empty-src-dirs
+    rclone copy "gdrive:Orthodox PDF Collection" "./Orthodox PDF Collection" --drive-shared-with-me -P --transfers 2 --checkers 8 --retries 10 --low-level-retries 20 --create-empty-src-dirs
 
 The command showed progress around:
 
@@ -102,7 +105,7 @@ That confirmed that recursive downloading was working.
 
 For a more persistent run:
 
-    rclone copy "gdrive:Orthodox PDF Collection" "/storage/emulated/0/Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s --stats 15s --stats-one-line -P
+    rclone copy "gdrive:Orthodox PDF Collection" "./Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s --stats 15s --stats-one-line -P
 
 Why:
 - copy = never deletes local files
@@ -119,7 +122,7 @@ Why:
 
 If Xed closes, Android sleeps, Wi-Fi changes, or the connection fails, run:
 
-    rclone copy "gdrive:Orthodox PDF Collection" "/storage/emulated/0/Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s --stats 15s --stats-one-line -P
+    rclone copy "gdrive:Orthodox PDF Collection" "./Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s --stats 15s --stats-one-line -P
 
 Run the same command again. rclone copy is resume-friendly and will normally
 skip files that are already successfully present.
@@ -134,7 +137,7 @@ Check total source size:
 
 Check downloaded local size:
 
-    rclone size "/storage/emulated/0/Orthodox PDF Collection"
+    rclone size "./Orthodox PDF Collection"
 
 
 9. SOURCE INVENTORY
@@ -142,15 +145,15 @@ Check downloaded local size:
 
 Save every source file path into a text file:
 
-    rclone lsf "gdrive:Orthodox PDF Collection" --drive-shared-with-me -R --files-only > "/storage/emulated/0/orthodox-source-files.txt"
+    rclone lsf "gdrive:Orthodox PDF Collection" --drive-shared-with-me -R --files-only > "./orthodox-source-files.txt"
 
 Count source files:
 
-    wc -l "/storage/emulated/0/orthodox-source-files.txt"
+    wc -l "./orthodox-source-files.txt"
 
 Count source PDFs:
 
-    grep -i '\.pdf$' "/storage/emulated/0/orthodox-source-files.txt" | wc -l
+    grep -i '\.pdf$' "./orthodox-source-files.txt" | wc -l
 
 
 10. LOCAL INVENTORY
@@ -158,15 +161,15 @@ Count source PDFs:
 
 Save every downloaded local path:
 
-    rclone lsf "/storage/emulated/0/Orthodox PDF Collection" -R --files-only > "/storage/emulated/0/orthodox-local-files.txt"
+    rclone lsf "./Orthodox PDF Collection" -R --files-only > "./orthodox-local-files.txt"
 
 Count local files:
 
-    wc -l "/storage/emulated/0/orthodox-local-files.txt"
+    wc -l "./orthodox-local-files.txt"
 
 Count local PDFs:
 
-    grep -i '\.pdf$' "/storage/emulated/0/orthodox-local-files.txt" | wc -l
+    grep -i '\.pdf$' "./orthodox-local-files.txt" | wc -l
 
 
 11. VERIFY SOURCE VS LOCAL
@@ -174,7 +177,7 @@ Count local PDFs:
 
 One-way verification:
 
-    rclone check "gdrive:Orthodox PDF Collection" "/storage/emulated/0/Orthodox PDF Collection" --drive-shared-with-me --one-way --checkers 8 --combined "/storage/emulated/0/orthodox-check-combined.txt"
+    rclone check "gdrive:Orthodox PDF Collection" "./Orthodox PDF Collection" --drive-shared-with-me --one-way --checkers 8 --combined "./orthodox-check-combined.txt"
 
 If the check reports missing/mismatched files, run the copy command again and
 then run the check again.
@@ -185,11 +188,11 @@ then run the check again.
 
 Download:
 
-    rclone copy "gdrive:Orthodox PDF Collection" "/storage/emulated/0/Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s --stats 15s --stats-one-line -P
+    rclone copy "gdrive:Orthodox PDF Collection" "./Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s --stats 15s --stats-one-line -P
 
 Then verify:
 
-    rclone check "gdrive:Orthodox PDF Collection" "/storage/emulated/0/Orthodox PDF Collection" --drive-shared-with-me --one-way --checkers 8 --combined "/storage/emulated/0/orthodox-check-combined.txt"
+    rclone check "gdrive:Orthodox PDF Collection" "./Orthodox PDF Collection" --drive-shared-with-me --one-way --checkers 8 --combined "./orthodox-check-combined.txt"
 
 If there are missing files, run the copy command again.
 
@@ -259,21 +262,25 @@ Test the folder:
 
     rclone lsf "gdrive:Orthodox PDF Collection" --drive-shared-with-me --max-depth 1 --files-only
 
-Download to Desktop:
+Create the destination folder in the CURRENT VS CODE TERMINAL DIRECTORY:
 
-    rclone copy "gdrive:Orthodox PDF Collection" "$env:USERPROFILE\Desktop\Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s --stats 15s --stats-one-line -P
+    New-Item -ItemType Directory -Force ".\Orthodox PDF Collection"
+
+Download into that folder:
+
+    rclone copy "gdrive:Orthodox PDF Collection" ".\Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s --stats 15s --stats-one-line -P
 
 Check the source size:
 
     rclone size "gdrive:Orthodox PDF Collection" --drive-shared-with-me
 
-Check the local size:
+Check the local size (current terminal directory):
 
-    rclone size "$env:USERPROFILE\Desktop\Orthodox PDF Collection"
+    rclone size ".\Orthodox PDF Collection"
 
 Verify:
 
-    rclone check "gdrive:Orthodox PDF Collection" "$env:USERPROFILE\Desktop\Orthodox PDF Collection" --drive-shared-with-me --one-way --checkers 8 --combined "$env:USERPROFILE\Desktop\orthodox-check-combined.txt"
+    rclone check "gdrive:Orthodox PDF Collection" ".\Orthodox PDF Collection" --drive-shared-with-me --one-way --checkers 8 --combined ".\orthodox-check-combined.txt"
 
 
 17. WINDOWS SOURCE INVENTORY
@@ -281,15 +288,15 @@ Verify:
 
 Save the recursive source inventory:
 
-    rclone lsf "gdrive:Orthodox PDF Collection" --drive-shared-with-me -R --files-only | Set-Content "$env:USERPROFILE\Desktop\orthodox-source-files.txt"
+    rclone lsf "gdrive:Orthodox PDF Collection" --drive-shared-with-me -R --files-only | Set-Content ".\orthodox-source-files.txt"
 
 Count source lines:
 
-    (Get-Content "$env:USERPROFILE\Desktop\orthodox-source-files.txt").Count
+    (Get-Content ".\orthodox-source-files.txt").Count
 
 Count source PDFs:
 
-    (Get-Content "$env:USERPROFILE\Desktop\orthodox-source-files.txt" | Where-Object { $_ -match '(?i)\.pdf$' }).Count
+    (Get-Content ".\orthodox-source-files.txt" | Where-Object { $_ -match '(?i)\.pdf$' }).Count
 
 
 18. WINDOWS LOCAL INVENTORY
@@ -297,15 +304,15 @@ Count source PDFs:
 
 Save the local inventory:
 
-    rclone lsf "$env:USERPROFILE\Desktop\Orthodox PDF Collection" -R --files-only | Set-Content "$env:USERPROFILE\Desktop\orthodox-local-files.txt"
+    rclone lsf ".\Orthodox PDF Collection" -R --files-only | Set-Content ".\orthodox-local-files.txt"
 
 Count local lines:
 
-    (Get-Content "$env:USERPROFILE\Desktop\orthodox-local-files.txt").Count
+    (Get-Content ".\orthodox-local-files.txt").Count
 
 Count local PDFs:
 
-    (Get-Content "$env:USERPROFILE\Desktop\orthodox-local-files.txt" | Where-Object { $_ -match '(?i)\.pdf$' }).Count
+    (Get-Content ".\orthodox-local-files.txt" | Where-Object { $_ -match '(?i)\.pdf$' }).Count
 
 
 19. WINDOWS RESUME COMMAND
@@ -313,7 +320,7 @@ Count local PDFs:
 
 If the download stops, run the same command again:
 
-    rclone copy "gdrive:Orthodox PDF Collection" "$env:USERPROFILE\Desktop\Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s --stats 15s --stats-one-line -P
+    rclone copy "gdrive:Orthodox PDF Collection" ".\Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s --stats 15s --stats-one-line -P
 
 
 20. WINDOWS STATE / CONFIG
@@ -359,15 +366,22 @@ Once the remote is configured, normal rclone copy commands are the simple part.
 
 Android/Xed:
 
-    rclone copy "gdrive:Orthodox PDF Collection" "/storage/emulated/0/Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s -P
+    rclone copy "gdrive:Orthodox PDF Collection" "./Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s -P
 
 Windows PowerShell:
 
-    rclone copy "gdrive:Orthodox PDF Collection" "$env:USERPROFILE\Desktop\Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s -P
+    rclone copy "gdrive:Orthodox PDF Collection" ".\Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s -P
 
 
 23. MINIMAL COMMAND SET
 -----------------------
+
+VS CODE TIP
+-----------
+Open the integrated terminal in the directory where you want the collection.
+All commands below use relative paths (".\") so no username, Desktop path, or
+hard-coded drive letter is needed.
+
 
 If everything is already authenticated and you just want the collection:
 
@@ -377,9 +391,9 @@ Windows:
 
     rclone lsf "gdrive:Orthodox PDF Collection" --drive-shared-with-me --max-depth 1 --files-only
 
-    rclone copy "gdrive:Orthodox PDF Collection" "$env:USERPROFILE\Desktop\Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s -P
+    rclone copy "gdrive:Orthodox PDF Collection" ".\Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s -P
 
-    rclone check "gdrive:Orthodox PDF Collection" "$env:USERPROFILE\Desktop\Orthodox PDF Collection" --drive-shared-with-me --one-way --checkers 8 --combined "$env:USERPROFILE\Desktop\orthodox-check-combined.txt"
+    rclone check "gdrive:Orthodox PDF Collection" ".\Orthodox PDF Collection" --drive-shared-with-me --one-way --checkers 8 --combined ".\orthodox-check-combined.txt"
 
 Android/Xed:
 
@@ -387,9 +401,9 @@ Android/Xed:
 
     rclone lsf "gdrive:Orthodox PDF Collection" --drive-shared-with-me --max-depth 1 --files-only
 
-    rclone copy "gdrive:Orthodox PDF Collection" "/storage/emulated/0/Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s -P
+    rclone copy "gdrive:Orthodox PDF Collection" "./Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s -P
 
-    rclone check "gdrive:Orthodox PDF Collection" "/storage/emulated/0/Orthodox PDF Collection" --drive-shared-with-me --one-way --checkers 8 --combined "/storage/emulated/0/orthodox-check-combined.txt"
+    rclone check "gdrive:Orthodox PDF Collection" "./Orthodox PDF Collection" --drive-shared-with-me --one-way --checkers 8 --combined "./orthodox-check-combined.txt"
 
 
 END
