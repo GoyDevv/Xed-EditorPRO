@@ -1,0 +1,398 @@
+ORTHODOX PDF COLLECTION
+XED PRO / TERMINAL COMMANDS + WORKING rclone NOTES
+==================================================
+
+Purpose
+-------
+This file records the terminal workflow used in Xed Editor PRO to access the
+Google Drive folder "Orthodox PDF Collection" from Shared with me and pull the
+whole tree recursively.
+
+IMPORTANT SECURITY
+------------------
+- Never put rclone.conf, OAuth tokens, Google client secrets, or private keys
+  into GitHub.
+- Never paste an OAuth token into chat.
+- If an OAuth token was accidentally exposed, revoke/re-authorize it.
+
+1. BASIC XED / ANDROID TERMINAL SETUP
+-------------------------------------
+
+Create the destination folder:
+
+    mkdir -p "/storage/emulated/0/Orthodox PDF Collection"
+
+Check the folder:
+
+    ls -la "/storage/emulated/0/Orthodox PDF Collection"
+
+
+2. CHECK rclone
+---------------
+
+Check that rclone is installed:
+
+    rclone version
+
+Show configured remotes:
+
+    rclone listremotes
+
+
+3. GOOGLE DRIVE REMOTE
+----------------------
+
+The working remote used in Xed was:
+
+    gdrive:
+
+The source folder was:
+
+    gdrive:Orthodox PDF Collection
+
+Because the folder is under Google Drive "Shared with me", use:
+
+    --drive-shared-with-me
+
+Test the top level:
+
+    rclone lsf "gdrive:Orthodox PDF Collection" --drive-shared-with-me --max-depth 1 --files-only
+
+List everything recursively:
+
+    rclone lsf "gdrive:Orthodox PDF Collection" --drive-shared-with-me -R --files-only
+
+
+4. LIST SHARED WITH ME
+----------------------
+
+List Shared with me entries:
+
+    rclone lsd "gdrive:" --drive-shared-with-me --max-depth 1
+
+The explicit form used by the downloader experiments was:
+
+    rclone lsd "gdrive,shared_with_me:" --max-depth 1
+
+The explicit shared-with-me source form was:
+
+    "gdrive,shared_with_me:Orthodox PDF Collection"
+
+
+5. THE WORKING XED DOWNLOAD COMMAND
+-----------------------------------
+
+This was the proven command that was visibly transferring the collection:
+
+    rclone copy "gdrive:Orthodox PDF Collection" "/storage/emulated/0/Orthodox PDF Collection" --drive-shared-with-me -P --transfers 2 --checkers 8 --retries 10 --low-level-retries 20 --create-empty-src-dirs
+
+The command showed progress around:
+
+    Transferred:    10.862 MiB / 12.309 GiB, 0%, 971.389 KiB/s
+    Transferred:    6 / 1479, 0%
+    Transferring:
+      Philosophy/Blueprints of a Mind (Sorem).doc
+      Philosophy/Christian A... Of Time (Bradshaw).pdf
+
+That confirmed that recursive downloading was working.
+
+
+6. RECOMMENDED STRONGER XED COMMAND
+-----------------------------------
+
+For a more persistent run:
+
+    rclone copy "gdrive:Orthodox PDF Collection" "/storage/emulated/0/Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s --stats 15s --stats-one-line -P
+
+Why:
+- copy = never deletes local files
+- repeated runs resume by skipping files already present
+- transfers 2 is conservative for mobile
+- checkers 8 improves checking/listing
+- retries 20 handles transient Drive/network errors
+- low-level-retries 50 handles repeated HTTP/network failures
+- retries-sleep 10s spaces out retries
+
+
+7. RESUME AFTER INTERRUPTION
+----------------------------
+
+If Xed closes, Android sleeps, Wi-Fi changes, or the connection fails, run:
+
+    rclone copy "gdrive:Orthodox PDF Collection" "/storage/emulated/0/Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s --stats 15s --stats-one-line -P
+
+Run the same command again. rclone copy is resume-friendly and will normally
+skip files that are already successfully present.
+
+
+8. SOURCE SIZE / FILE COUNT
+---------------------------
+
+Check total source size:
+
+    rclone size "gdrive:Orthodox PDF Collection" --drive-shared-with-me
+
+Check downloaded local size:
+
+    rclone size "/storage/emulated/0/Orthodox PDF Collection"
+
+
+9. SOURCE INVENTORY
+-------------------
+
+Save every source file path into a text file:
+
+    rclone lsf "gdrive:Orthodox PDF Collection" --drive-shared-with-me -R --files-only > "/storage/emulated/0/orthodox-source-files.txt"
+
+Count source files:
+
+    wc -l "/storage/emulated/0/orthodox-source-files.txt"
+
+Count source PDFs:
+
+    grep -i '\.pdf$' "/storage/emulated/0/orthodox-source-files.txt" | wc -l
+
+
+10. LOCAL INVENTORY
+-------------------
+
+Save every downloaded local path:
+
+    rclone lsf "/storage/emulated/0/Orthodox PDF Collection" -R --files-only > "/storage/emulated/0/orthodox-local-files.txt"
+
+Count local files:
+
+    wc -l "/storage/emulated/0/orthodox-local-files.txt"
+
+Count local PDFs:
+
+    grep -i '\.pdf$' "/storage/emulated/0/orthodox-local-files.txt" | wc -l
+
+
+11. VERIFY SOURCE VS LOCAL
+--------------------------
+
+One-way verification:
+
+    rclone check "gdrive:Orthodox PDF Collection" "/storage/emulated/0/Orthodox PDF Collection" --drive-shared-with-me --one-way --checkers 8 --combined "/storage/emulated/0/orthodox-check-combined.txt"
+
+If the check reports missing/mismatched files, run the copy command again and
+then run the check again.
+
+
+12. STRONG COPY + CHECK LOOP
+----------------------------
+
+Download:
+
+    rclone copy "gdrive:Orthodox PDF Collection" "/storage/emulated/0/Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s --stats 15s --stats-one-line -P
+
+Then verify:
+
+    rclone check "gdrive:Orthodox PDF Collection" "/storage/emulated/0/Orthodox PDF Collection" --drive-shared-with-me --one-way --checkers 8 --combined "/storage/emulated/0/orthodox-check-combined.txt"
+
+If there are missing files, run the copy command again.
+
+
+13. LONG DOWNLOADS ON ANDROID
+------------------------------
+
+Keep the Xed terminal/session alive while rclone runs.
+
+Android may stop background terminal processes because of battery
+optimization. For long downloads, allow the terminal app to run in the
+background and disable battery optimization for it in Android settings.
+
+
+14. USEFUL DEBUGGING COMMANDS
+-----------------------------
+
+Show the source path with verbose logging:
+
+    rclone lsf "gdrive:Orthodox PDF Collection" --drive-shared-with-me --max-depth 1 --files-only -vv
+
+List recursively with verbose logging:
+
+    rclone lsf "gdrive:Orthodox PDF Collection" --drive-shared-with-me -R --files-only -vv
+
+Inspect configured remotes:
+
+    rclone listremotes
+
+WARNING: "rclone config show" can expose sensitive configuration. Do NOT
+copy its output into GitHub or chat.
+
+    rclone config show
+
+
+15. IMPORTANT rclone BEHAVIOR
+-----------------------------
+
+Use:
+
+    rclone copy
+
+Do NOT use:
+
+    rclone sync
+
+for this backup/download workflow.
+
+copy:
+- downloads new/missing files
+- keeps existing local files
+- can be safely repeated
+
+sync:
+- makes destination match source
+- can delete destination files that are not in source
+
+
+16. WINDOWS VS CODE / POWERSHELL
+--------------------------------
+
+When the gdrive remote is already authenticated, the Windows equivalent is:
+
+    rclone listremotes
+
+Test the folder:
+
+    rclone lsf "gdrive:Orthodox PDF Collection" --drive-shared-with-me --max-depth 1 --files-only
+
+Download to Desktop:
+
+    rclone copy "gdrive:Orthodox PDF Collection" "$env:USERPROFILE\Desktop\Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s --stats 15s --stats-one-line -P
+
+Check the source size:
+
+    rclone size "gdrive:Orthodox PDF Collection" --drive-shared-with-me
+
+Check the local size:
+
+    rclone size "$env:USERPROFILE\Desktop\Orthodox PDF Collection"
+
+Verify:
+
+    rclone check "gdrive:Orthodox PDF Collection" "$env:USERPROFILE\Desktop\Orthodox PDF Collection" --drive-shared-with-me --one-way --checkers 8 --combined "$env:USERPROFILE\Desktop\orthodox-check-combined.txt"
+
+
+17. WINDOWS SOURCE INVENTORY
+----------------------------
+
+Save the recursive source inventory:
+
+    rclone lsf "gdrive:Orthodox PDF Collection" --drive-shared-with-me -R --files-only | Set-Content "$env:USERPROFILE\Desktop\orthodox-source-files.txt"
+
+Count source lines:
+
+    (Get-Content "$env:USERPROFILE\Desktop\orthodox-source-files.txt").Count
+
+Count source PDFs:
+
+    (Get-Content "$env:USERPROFILE\Desktop\orthodox-source-files.txt" | Where-Object { $_ -match '(?i)\.pdf$' }).Count
+
+
+18. WINDOWS LOCAL INVENTORY
+---------------------------
+
+Save the local inventory:
+
+    rclone lsf "$env:USERPROFILE\Desktop\Orthodox PDF Collection" -R --files-only | Set-Content "$env:USERPROFILE\Desktop\orthodox-local-files.txt"
+
+Count local lines:
+
+    (Get-Content "$env:USERPROFILE\Desktop\orthodox-local-files.txt").Count
+
+Count local PDFs:
+
+    (Get-Content "$env:USERPROFILE\Desktop\orthodox-local-files.txt" | Where-Object { $_ -match '(?i)\.pdf$' }).Count
+
+
+19. WINDOWS RESUME COMMAND
+--------------------------
+
+If the download stops, run the same command again:
+
+    rclone copy "gdrive:Orthodox PDF Collection" "$env:USERPROFILE\Desktop\Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s --stats 15s --stats-one-line -P
+
+
+20. WINDOWS STATE / CONFIG
+--------------------------
+
+The PowerShell downloader experiment stored state under:
+
+    .orthodox-drive-downloader
+
+Typical contents:
+- rclone executable
+- rclone config
+- OAuth logs
+- source inventory
+- destination inventory
+- rclone check results
+
+Treat the directory as sensitive because the rclone configuration can contain
+OAuth credentials.
+
+
+21. WHAT HAPPENED WITH WINDOWS AUTO-AUTH
+----------------------------------------
+
+The Windows experiment successfully:
+- downloaded rclone
+- started Google OAuth
+- detected the localhost authorization URL
+- opened the default browser
+- completed Google authorization
+
+The problem happened after authentication because rclone reported that its
+built-in/shared Google client ID was being retired during 2026.
+
+Therefore, when setting up a NEW Windows Google Drive remote in 2026, use
+your own Google OAuth Desktop client ID and client secret.
+
+Once the remote is configured, normal rclone copy commands are the simple part.
+
+
+22. ONE-LINE COPY COMMANDS
+--------------------------
+
+Android/Xed:
+
+    rclone copy "gdrive:Orthodox PDF Collection" "/storage/emulated/0/Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s -P
+
+Windows PowerShell:
+
+    rclone copy "gdrive:Orthodox PDF Collection" "$env:USERPROFILE\Desktop\Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s -P
+
+
+23. MINIMAL COMMAND SET
+-----------------------
+
+If everything is already authenticated and you just want the collection:
+
+Windows:
+
+    rclone listremotes
+
+    rclone lsf "gdrive:Orthodox PDF Collection" --drive-shared-with-me --max-depth 1 --files-only
+
+    rclone copy "gdrive:Orthodox PDF Collection" "$env:USERPROFILE\Desktop\Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s -P
+
+    rclone check "gdrive:Orthodox PDF Collection" "$env:USERPROFILE\Desktop\Orthodox PDF Collection" --drive-shared-with-me --one-way --checkers 8 --combined "$env:USERPROFILE\Desktop\orthodox-check-combined.txt"
+
+Android/Xed:
+
+    rclone listremotes
+
+    rclone lsf "gdrive:Orthodox PDF Collection" --drive-shared-with-me --max-depth 1 --files-only
+
+    rclone copy "gdrive:Orthodox PDF Collection" "/storage/emulated/0/Orthodox PDF Collection" --drive-shared-with-me --create-empty-src-dirs --transfers 2 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s -P
+
+    rclone check "gdrive:Orthodox PDF Collection" "/storage/emulated/0/Orthodox PDF Collection" --drive-shared-with-me --one-way --checkers 8 --combined "/storage/emulated/0/orthodox-check-combined.txt"
+
+
+END
+===
+This is a command/reference sheet, not a credential store. Never commit OAuth
+tokens, rclone.conf, client secrets, or private credentials.
