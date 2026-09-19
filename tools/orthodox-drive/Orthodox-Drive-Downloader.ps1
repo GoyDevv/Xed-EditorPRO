@@ -60,15 +60,16 @@ function Get-AuthToken([string]$ClientId='', [string]$ClientSecret='') {
 
   for($i=0;$i -lt 180 -and -not $p.HasExited;$i++){
     Start-Sleep 1
-    if(Test-Path $out){
-      $t = Get-Content $out -Raw -ErrorAction SilentlyContinue
-      if($t){
-        $m = [regex]::Match($t,'https?://127\.0\.0\.1:\d+/auth(?:\?state=\S+)?')
-        if($m.Success){
-          Write-Host '    Opening Google authorization in the default browser...'
-          Start-Process $m.Value
-          break
-        }
+    $t = ''
+    if(Test-Path $out){ $t += (Get-Content $out -Raw -ErrorAction SilentlyContinue) }
+    if(Test-Path $err){ $t += (Get-Content $err -Raw -ErrorAction SilentlyContinue) }
+
+    if($t){
+      $m = [regex]::Match($t,'https?://127\.0\.0\.1:\d+/auth(?:\?state=\S+)?')
+      if($m.Success){
+        Write-Host '    Opening Google authorization in the default browser...'
+        Start-Process $m.Value
+        break
       }
     }
   }
