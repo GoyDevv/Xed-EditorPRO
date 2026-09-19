@@ -44,8 +44,11 @@ $Rclone = Get-Rclone
 Write-Host (& $Rclone version | Select-Object -First 1) -ForegroundColor DarkGray
 
 function Test-Source {
-  & $Rclone lsf $Source --max-depth 1 --files-only 1>$null 2> (Join-Path $Logs 'source-test.log')
-  return ($LASTEXITCODE -eq 0)
+  $testLog = Join-Path $Logs 'source-test.log'
+  Remove-Item $testLog -Force -ErrorAction SilentlyContinue
+  & $Rclone lsf $Source --max-depth 1 --files-only *> $testLog
+  $code = $LASTEXITCODE
+  return ($code -eq 0)
 }
 
 function Get-AuthToken([string]$ClientId='', [string]$ClientSecret='') {
@@ -83,29 +86,59 @@ function Get-AuthToken([string]$ClientId='', [string]$ClientSecret='') {
 
 function Configure-Drive {
   Step 'Google Drive authorization'
-  $token = Get-AuthToken
 
-  if(-not $token){
-    Warn 'The first OAuth attempt did not complete.'
-    Warn 'rclone says its shared Google client is being retired during 2026.'
-    Write-Host ''
-    $id = Read-Host 'Google OAuth Client ID (press Enter to stop)'
-    if(-not $id){ Die 'OAuth authorization failed. See oauth.log and oauth.err.' }
-    $secret = Read-Host 'Google OAuth Client Secret'
-    if(-not $secret){ Die 'OAuth client secret was empty.' }
-    $token = Get-AuthToken $id $secret
-    if(-not $token){
-      Get-Content (Join-Path $Logs 'oauth.log') -ErrorAction SilentlyContinue
-      Get-Content (Join-Path $Logs 'oauth.err') -ErrorAction SilentlyContinue
-      Die 'OAuth authorization failed.'
+  Write-Host ''
+  Write-Host 'A fresh rclone Google OAuth client is required because rclone''s built-in'
+  Write-Host 'shared Google client is being retired during 2026.' -ForegroundColor Yellow
+  Write-Host 'The script will open your browser automatically after you enter the client credentials.'
+  Write-Host ''
+
+  $id = $env:RCLONE_GOOGLE_CLIENT_ID
+  if(-not $id){
+    $id = Read-Host 'Google OAuth Client ID'
+  }
+  if(-not $id){ Die 'Google OAuth Client ID was empty.' }
+
+  $secret = $env:RCLONE_GOOGLE_CLIENT_SECRET
+  if(-not $secret){
+    $secureSecret = Read-Host 'Google OAuth Client Secret' -AsSecureString
+    $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureSecret)
+    try {
+      $secret = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
+    } finally {
+      [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
     }
-    & $Rclone config create $Remote drive scope drive token $token shared_with_me true client_id $id client_secret $secret | Out-File (Join-Path $Logs 'config-create.log') -Encoding utf8
-  } else {
-    & $Rclone config create $Remote drive scope drive token $token shared_with_me true | Out-File (Join-Path $Logs 'config-create.log') -Encoding utf8
+  }
+  if(-not $secret){ Die 'Google OAuth Client Secret was empty.' }
+
+  $token = Get-AuthToken $id $secret
+  if(-not $token){
+    Get-Content (Join-Path $Logs 'oauth.log') -ErrorAction SilentlyContinue
+    Get-Content (Join-Path $Logs 'oauth.err') -ErrorAction SilentlyContinue
+    Die 'OAuth authorization failed. See oauth.log and oauth.err.'
   }
 
-  if($LASTEXITCODE -ne 0){ Die 'Could not create the rclone Google Drive remote.' }
-  Remove-Item (Join-Path $Logs 'oauth.log'),(Join-Path $Logs 'oauth.err') -Force -ErrorAction SilentlyContinue
+  # Keep the downloader''s own remote separate from the normal gdrive remote.
+  $script:Remote = 'orthodox-gdrive'
+  & $Rclone config delete $script:Remote *> $null
+
+  $createLog = Join-Path $Logs 'config-create.log'
+  & $Rclone config create $script:Remote drive scope drive token $token client_id $id client_secret $secret *> $createLog
+
+  if($LASTEXITCODE -ne 0){
+    Die 'Could not create the orthodox-gdrive rclone remote. See config-create.log.'
+  }
+
+  $script:Source = "$script:Remote,shared_with_me:$Folder"
+
+  if(-not (Test-Source)){
+    Write-Host ''
+    Write-Host 'Top-level Shared with me entries visible to rclone:' -ForegroundColor Yellow
+    & $Rclone lsd "$script:Remote,shared_with_me:" --max-depth 1
+    Die "Authorization succeeded, but '$Folder' was not accessible in Shared with me."
+  }
+
+  Write-Host 'Google Drive remote verified successfully.' -ForegroundColor Green
 }
 
 if(-not (Test-Path $Config) -or -not (Test-Source)){
@@ -130,10 +163,10 @@ $pdfs = @($src | Where-Object { $_ -match '(?i)\.pdf$' })
 Write-Host "    Source files: $($src.Count)"
 Write-Host "    PDFs:         $($pdfs.Count)"
 
-for($pass=1;$pass -le 3;$pass++){
-  Step "Download + verification pass $pass/3"
+for($pass=1;$pass -le 5;$pass++){
+  Step "Download + verification pass $pass/5"
   $copyLog = Join-Path $Logs "copy-$pass.log"
-  & $Rclone copy $Source $Dest --transfers 4 --checkers 8 --retries 10 --low-level-retries 20 --retries-sleep 10s --stats 15s --stats-one-line --create-empty-src-dirs --drive-stop-on-download-limit --log-file $copyLog --log-level INFO -P
+  & $Rclone copy $Source $Dest --transfers 4 --checkers 8 --retries 20 --low-level-retries 50 --retries-sleep 10s --stats 15s --stats-one-line --create-empty-src-dirs --drive-stop-on-download-limit --log-file $copyLog --log-level INFO -P
   if($LASTEXITCODE -ne 0){ Warn "Copy returned $LASTEXITCODE. Verification will decide what remains." }
 
   $combined = Join-Path $State 'check_combined.txt'
